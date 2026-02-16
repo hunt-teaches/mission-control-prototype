@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+
 
 const Dashboard = () => {
   // Generate 144 facts (1x1 to 12x12)
@@ -67,4 +67,3 @@ const iconBox = {
   marginBottom: '10px'
 };
 
-export default Dashboard;
