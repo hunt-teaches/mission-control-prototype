@@ -13,59 +13,58 @@ const StandardsGrid = ({ studentId }) => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      
-      // 1. Fetch skills from Supabase
-      const { data: skillsData, error: skillsError } = await supabaseClient
+      // Fetch skills and sort them by Tier (T0 to T8)
+      const { data, error } = await supabaseClient
         .from('skills')
         .select('*');
       
-      if (skillsError) throw skillsError;
+      if (error) throw error;
 
-      // 2. Fetch mastery progress
+      // Sort skills so T0 is first, then T1...
+      const sortedSkills = (data || []).sort((a, b) => {
+        return a.tier.localeCompare(b.tier, undefined, { numeric: true, sensitivity: 'base' });
+      });
+
+      // Fetch progress
       const { data: masteryData } = await supabaseClient
         .from('student_mastery')
         .select('skill_id, status')
         .eq('student_id', studentId);
 
       const masteryMap = {};
-      masteryData?.forEach(m => {
-        masteryMap[m.skill_id] = m.status;
-      });
+      masteryData?.forEach(m => { masteryMap[m.skill_id] = m.status; });
 
-      setSkills(skillsData || []);
+      setSkills(sortedSkills);
       setMastery(masteryMap);
     } catch (err) {
-      console.error("Error loading grid:", err);
+      console.error("Grid Error:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) return <div style={{color: 'white', padding: '20px'}}>Loading 665 skills...</div>;
+  if (loading) return <div style={{color: 'white', padding: '20px'}}>Mapping curriculum...</div>;
 
   return (
     <div className="grid-outer">
-      {/* If skills are empty, show a warning */}
-      {skills.length === 0 && (
-        <div style={{color: '#f59e0b', padding: '20px', border: '1px solid #f59e0b', borderRadius: '8px'}}>
-          ⚠️ No skills found in database. Check your 'skills' table in Supabase!
-        </div>
-      )}
-
       <div className="grid-ready">
-        <div className="grid">
+        <div className="grid" style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(20, 1fr)', 
+          gap: '4px', 
+          background: '#0d0f14', 
+          padding: '10px' 
+        }}>
           {Array.from({ length: 34 * 20 }).map((_, i) => {
-            // Note: In your CSV/Prototype, row 33 is the BOTTOM (Kindergarten)
-            // and row 0 is the TOP (8th Grade).
-            const r = Math.floor(i / 20);
-            const c = i % 20;
+            // Logic to fill from BOTTOM-LEFT to TOP-RIGHT
+            // Row 33 is bottom, Row 0 is top
+            const visualRow = Math.floor(i / 20); 
+            const col = i % 20;
+            const rowFromBottom = 33 - visualRow;
             
-            // This line is the "Fix": It checks for 'row' or 'grid_row' 
-            // and 'col' or 'grid_col' to be safe.
-            const skill = skills.find(s => 
-              (s.row === r || s.grid_row === r) && 
-              (s.col === c || s.grid_col === c)
-            );
+            // Calculate which skill index belongs in this specific square
+            const skillIndex = (rowFromBottom * 20) + col;
+            const skill = skills[skillIndex];
 
             const status = skill ? (mastery[skill.id] || 'locked') : 'empty';
 
@@ -74,9 +73,13 @@ const StandardsGrid = ({ studentId }) => {
                 key={i}
                 className={`cell ${status}`}
                 onClick={() => skill && setSelectedSkill(skill)}
+                title={skill ? `[${skill.tier}] ${skill.skill_name}` : ''}
                 style={{
-                  // Add temporary borders if the grid is invisible
-                  border: skill ? '' : '1px solid rgba(255,255,255,0.02)' 
+                  aspectRatio: '1/1',
+                  borderRadius: '2px',
+                  cursor: skill ? 'pointer' : 'default',
+                  backgroundColor: !skill ? 'transparent' : undefined,
+                  border: skill && status === 'locked' ? '1px solid #2a2f3a' : 'none'
                 }}
               />
             );
@@ -88,15 +91,16 @@ const StandardsGrid = ({ studentId }) => {
         <div className="overlay visible" onClick={() => setSelectedSkill(null)}>
           <div className="preview-card" onClick={e => e.stopPropagation()}>
             <div className="card-tier-badge">
-              <span>{selectedSkill.tier || selectedSkill.Tier}</span>
-              <span>{selectedSkill.domain || selectedSkill.Domain}</span>
+              <span style={{background: '#7c3aed', padding: '2px 8px', borderRadius: '4px', marginRight: '8px'}}>
+                {selectedSkill.tier}
+              </span>
+              <span style={{color: '#999'}}>{selectedSkill.domain}</span>
             </div>
-            <div className="card-title">{selectedSkill.skill_name || selectedSkill.Skill_Name}</div>
-            <div className="card-goal">{selectedSkill.the_goal || selectedSkill.The_Goal}</div>
-            <div className="card-actions">
-              <button className="card-btn-primary" onClick={() => setSelectedSkill(null)}>
-                Close
-              </button>
+            <h2 className="card-title" style={{margin: '15px 0'}}>{selectedSkill.skill_name}</h2>
+            <p className="card-goal" style={{color: '#ccc', lineHeight: '1.5'}}>{selectedSkill.the_goal}</p>
+            <div style={{marginTop: '20px', display: 'flex', gap: '10px'}}>
+              <button className="card-btn-primary" style={{flex: 1}} onClick={() => setSelectedSkill(null)}>Practice</button>
+              <button className="card-btn-secondary" onClick={() => setSelectedSkill(null)}>Close</button>
             </div>
           </div>
         </div>
