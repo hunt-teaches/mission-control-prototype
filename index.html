@@ -9,10 +9,37 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
       body { margin: 0; padding: 0; overflow: hidden; }
+      /* Mastery Colors */
+.cell.mastered { background-color: #22c55e; box-shadow: 0 0 10px #22c55e; }
+.cell.frontier_active { background-color: #f59e0b; box-shadow: 0 0 10px #f59e0b; }
+.cell.frontier_new { background-color: #38bdf8; box-shadow: 0 0 15px #38bdf8; }
+.cell.locked { background-color: #1e2129; border: 1px solid #2a2f3a; }
+.cell.empty { background-color: transparent; }
+
+/* The Grid Layout */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(20, 1fr);
+  gap: 4px;
+  background: #0d0f14;
+  padding: 10px;
+  border-radius: 8px;
+}
+
+.cell {
+  aspect-ratio: 1/1;
+  border-radius: 2px;
+  cursor: pointer;
+}
     </style>
   </head>
   <body>
     <div id="root"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <script type="text/babel" src="supabaseClient.js"></script>
+<script type="text/babel" src="supabaseClient.js"></script>
+<script type="text/babel" src="StandardsGrid.js"></script> 
     <script type="text/babel" src="Dashboard.js"></script>
     <script type="text/babel" src="App.js"></script>
   </body>
