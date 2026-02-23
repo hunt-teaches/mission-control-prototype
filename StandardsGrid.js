@@ -11,43 +11,62 @@ const StandardsGrid = ({ studentId }) => {
   }, [studentId]);
 
   const fetchData = async () => {
-    setLoading(true);
-    
-    // 1. Pull the curriculum from your 'skills' table
-    const { data: skillsData } = await supabaseClient
-      .from('skills')
-      .select('*');
+    try {
+      setLoading(true);
+      
+      // 1. Fetch skills from Supabase
+      const { data: skillsData, error: skillsError } = await supabaseClient
+        .from('skills')
+        .select('*');
+      
+      if (skillsError) throw skillsError;
 
-    // 2. Pull this student's progress from 'student_mastery'
-    const { data: masteryData } = await supabaseClient
-      .from('student_mastery')
-      .select('skill_id, status')
-      .eq('student_id', studentId);
+      // 2. Fetch mastery progress
+      const { data: masteryData } = await supabaseClient
+        .from('student_mastery')
+        .select('skill_id, status')
+        .eq('student_id', studentId);
 
-    // Turn mastery array into a quick-lookup object: { "DATA.01": "mastered" }
-    const masteryMap = {};
-    masteryData?.forEach(m => {
-      masteryMap[m.skill_id] = m.status;
-    });
+      const masteryMap = {};
+      masteryData?.forEach(m => {
+        masteryMap[m.skill_id] = m.status;
+      });
 
-    setSkills(skillsData || []);
-    setMastery(masteryMap);
-    setLoading(false);
+      setSkills(skillsData || []);
+      setMastery(masteryMap);
+    } catch (err) {
+      console.error("Error loading grid:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  if (loading) return <div className="loading">Loading your skill map...</div>;
+  if (loading) return <div style={{color: 'white', padding: '20px'}}>Loading 665 skills...</div>;
 
   return (
     <div className="grid-outer">
+      {/* If skills are empty, show a warning */}
+      {skills.length === 0 && (
+        <div style={{color: '#f59e0b', padding: '20px', border: '1px solid #f59e0b', borderRadius: '8px'}}>
+          ⚠️ No skills found in database. Check your 'skills' table in Supabase!
+        </div>
+      )}
+
       <div className="grid-ready">
         <div className="grid">
-          {/* We create a 20x34 grid (680 total slots) */}
           {Array.from({ length: 34 * 20 }).map((_, i) => {
-            const row = Math.floor(i / 20);
-            const col = i % 20;
+            // Note: In your CSV/Prototype, row 33 is the BOTTOM (Kindergarten)
+            // and row 0 is the TOP (8th Grade).
+            const r = Math.floor(i / 20);
+            const c = i % 20;
             
-            // Find if there is a skill at this coordinate
-            const skill = skills.find(s => s.row === row && s.col === col);
+            // This line is the "Fix": It checks for 'row' or 'grid_row' 
+            // and 'col' or 'grid_col' to be safe.
+            const skill = skills.find(s => 
+              (s.row === r || s.grid_row === r) && 
+              (s.col === c || s.grid_col === c)
+            );
+
             const status = skill ? (mastery[skill.id] || 'locked') : 'empty';
 
             return (
@@ -55,28 +74,27 @@ const StandardsGrid = ({ studentId }) => {
                 key={i}
                 className={`cell ${status}`}
                 onClick={() => skill && setSelectedSkill(skill)}
-                title={skill ? skill.skill_name : ''}
+                style={{
+                  // Add temporary borders if the grid is invisible
+                  border: skill ? '' : '1px solid rgba(255,255,255,0.02)' 
+                }}
               />
             );
           })}
         </div>
       </div>
 
-      {/* The Detail Card (Overlay) */}
       {selectedSkill && (
         <div className="overlay visible" onClick={() => setSelectedSkill(null)}>
           <div className="preview-card" onClick={e => e.stopPropagation()}>
             <div className="card-tier-badge">
-              <span>{selectedSkill.tier}</span>
-              <span>{selectedSkill.domain}</span>
+              <span>{selectedSkill.tier || selectedSkill.Tier}</span>
+              <span>{selectedSkill.domain || selectedSkill.Domain}</span>
             </div>
-            <div className="card-title">{selectedSkill.skill_name}</div>
-            <div className="card-goal">{selectedSkill.the_goal}</div>
+            <div className="card-title">{selectedSkill.skill_name || selectedSkill.Skill_Name}</div>
+            <div className="card-goal">{selectedSkill.the_goal || selectedSkill.The_Goal}</div>
             <div className="card-actions">
-              <button className="card-btn-primary" onClick={() => alert('Starting Lesson...')}>
-                Practice This Skill →
-              </button>
-              <button className="card-btn-secondary" onClick={() => setSelectedSkill(null)}>
+              <button className="card-btn-primary" onClick={() => setSelectedSkill(null)}>
                 Close
               </button>
             </div>
