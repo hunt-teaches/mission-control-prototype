@@ -122,23 +122,12 @@ if (skill) {
 
           return (
             <div
-              key={index}
-              className={`cell ${status}`}
-              onClick={() => skill && setSelectedSkill(skill)}
-              style={{
-                borderRadius: '2px',
-                cursor: skill ? 'pointer' : 'default',
-                backgroundColor: !skill
-                  ? 'transparent'
-                  : status === 'locked'
-                  ? '#1e2129'
-                  : undefined,
-                border:
-                  skill && status === 'locked'
-                    ? '1px solid #2a2f3a'
-                    : 'none',
-                transition: 'all 0.2s'
-              }}
+  key={index}
+  className={`cell ${status}`}
+  onClick={() => skill && setSelectedSkill(skill)}
+  style={{
+    cursor: skill ? 'pointer' : 'default'
+  }}
               title={
                 skill
                   ? skill['Skill Name'] || skill.skill_name
