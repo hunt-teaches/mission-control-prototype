@@ -97,7 +97,28 @@ const StandardsGrid = ({ studentId }) => {
       >
         {grid.flat().map((skill, index) => {
           const skillId = skill?.id || skill?.ID;
-          const status = skillId ? (mastery[skillId] || 'locked') : 'empty';
+          let status = 'empty';
+
+if (skill) {
+  const tierString = skill.tier || skill.Tier || "T0";
+  const tierNumber = parseInt(tierString.replace("T", ""));
+
+  if (tierNumber <= 3) {
+    status = Math.random() < 0.9 ? 'mastered' : 'locked';
+  } 
+  else if (tierNumber === 4 || tierNumber === 5) {
+    const r = Math.random();
+    if (r < 0.6) status = 'mastered';
+    else if (r < 0.85) status = 'frontier_active';
+    else status = 'frontier_new';
+  } 
+  else if (tierNumber === 6) {
+    status = Math.random() < 0.2 ? 'frontier_new' : 'locked';
+  } 
+  else {
+    status = 'locked';
+  }
+}
 
           return (
             <div
