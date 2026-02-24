@@ -1,6 +1,10 @@
 const { useState, useEffect } = React;
 
-const StandardsGrid = ({ studentId }) => {
+const StandardsGrid = ({ 
+  studentId, 
+  tableName = 'skills', 
+  totalCols = 20 
+}) => {
   const [skills, setSkills] = useState([]);
   const [mastery, setMastery] = useState({});
   const [loading, setLoading] = useState(true);
@@ -9,15 +13,14 @@ const StandardsGrid = ({ studentId }) => {
 
   useEffect(() => {
     fetchData();
-  }, [studentId]);
+  }, [studentId, tableName]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
 
-      // Fetch skills (now includes row + col)
       const { data: skillsData, error: skillsError } = await supabaseClient
-        .from('skills')
+        .from(tableName)
         .select('*');
 
       if (skillsError) throw skillsError;
@@ -26,7 +29,6 @@ const StandardsGrid = ({ studentId }) => {
         return;
       }
 
-      // Fetch mastery
       const { data: masteryData } = await supabaseClient
         .from('student_mastery')
         .select('skill_id, status')
@@ -52,31 +54,23 @@ const StandardsGrid = ({ studentId }) => {
     return <div style={{ color: 'white', padding: '20px' }}>Loading grid...</div>;
 
   if (error)
-    return (
-      <div style={{ color: 'red', padding: '20px' }}>
-        Error: {error}
-      </div>
-    );
+    return <div style={{ color: 'red', padding: '20px' }}>Error: {error}</div>;
 
-  // ----------------------------
-  // BUILD EMPTY 34 x 20 GRID
-  // ----------------------------
-  const TOTAL_ROWS = 34;
-  const TOTAL_COLS = 20;
+  // Dynamically determine grid height
+  const maxRow = Math.max(...skills.map(s => s.row || 0));
+  const TOTAL_ROWS = maxRow + 1;
 
   const grid = Array.from({ length: TOTAL_ROWS }, () =>
-    Array(TOTAL_COLS).fill(null)
+    Array(totalCols).fill(null)
   );
 
-  // PLACE EACH SKILL USING row + col
   skills.forEach(skill => {
     if (
       skill.row !== null &&
       skill.col !== null &&
       skill.row >= 0 &&
-      skill.row < TOTAL_ROWS &&
       skill.col >= 0 &&
-      skill.col < TOTAL_COLS
+      skill.col < totalCols
     ) {
       grid[skill.row][skill.col] = skill;
     }
@@ -89,10 +83,9 @@ const StandardsGrid = ({ studentId }) => {
         className="grid"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(20, 1fr)',
-          gridTemplateRows: 'repeat(34, 1fr)',
-          gap: '4px',
-          aspectRatio: '20/34'
+          gridTemplateColumns: `repeat(${totalCols}, 1fr)`,
+          gridTemplateRows: `repeat(${TOTAL_ROWS}, 1fr)`,
+          gap: '4px'
         }}
       >
         {grid.flat().map((skill, index) => {
@@ -118,17 +111,12 @@ const StandardsGrid = ({ studentId }) => {
                     : 'none',
                 transition: 'all 0.2s'
               }}
-              title={
-                skill
-                  ? skill['Skill Name'] || skill.skill_name
-                  : ''
-              }
+              title={skill ? skill["Skill Name"] : ''}
             />
           );
         })}
       </div>
 
-      {/* Modal */}
       {selectedSkill && (
         <div
           style={{
@@ -154,15 +142,15 @@ const StandardsGrid = ({ studentId }) => {
             onClick={e => e.stopPropagation()}
           >
             <div style={{ fontSize: '12px', color: '#7c3aed', textTransform: 'uppercase' }}>
-              {selectedSkill.tier || selectedSkill.Tier} • {selectedSkill.domain || selectedSkill.Domain}
+              {selectedSkill.Tier} • {selectedSkill.Domain}
             </div>
 
             <h2 style={{ margin: '10px 0' }}>
-              {selectedSkill['Skill Name'] || selectedSkill.skill_name}
+              {selectedSkill["Skill Name"]}
             </h2>
 
             <p style={{ color: '#aaa', lineHeight: '1.6' }}>
-              {selectedSkill['The Goal'] || selectedSkill.the_goal}
+              {selectedSkill["The Goal"]}
             </p>
 
             <button

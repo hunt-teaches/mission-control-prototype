@@ -1,41 +1,52 @@
 const { useState } = React;
 
-const Dashboard = (props) => {
-  // This state tracks which grid to show on the left side
-  const [view, setView] = useState('facts'); 
+const Dashboard = () => {
+  const [view, setView] = useState('facts');
 
   return (
     <div style={containerStyle}>
       
-      {/* LEFT HALF: The Mastery Section */}
+      {/* LEFT SIDE */}
       <div style={leftPanelStyle}>
         
-        {/* The Toggle Switch */}
-        <div style={toggleContainerStyle}>
-          <button 
-            style={view === 'facts' ? activeButtonStyle : buttonStyle} 
-            onClick={() => setView('facts')}
+        {/* DROPDOWN SELECTOR */}
+        <div style={{ marginBottom: '20px' }}>
+          <select
+            value={view}
+            onChange={(e) => setView(e.target.value)}
+            style={{
+              padding: '10px',
+              borderRadius: '8px',
+              border: '1px solid #ddd',
+              fontWeight: '600'
+            }}
           >
-            Math Facts
-          </button>
-          <button 
-            style={view === 'standards' ? activeButtonStyle : buttonStyle} 
-            onClick={() => setView('standards')}
-          >
-            K-8 Standards
-          </button>
+            <option value="facts">Math Facts</option>
+            <option value="standards">K-8 Standards</option>
+            <option value="ratio6">Grade 6 Ratios</option>
+          </select>
         </div>
 
-        {/* The Content: Either the 12x12 Grid OR the 665 Skills Map */}
-        <div style={{ flex: 1, overflowY: 'auto', marginTop: '20px' }}>
-          {view === 'facts' ? (
-            <MathFactsGrid />
-          ) : (
-            <StandardsGrid studentId="User123" />
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+          {view === 'facts' && <MathFactsGrid />}
+
+          {view === 'standards' && (
+            <StandardsGrid
+              studentId="User123"
+              tableName="skills"
+              totalCols={20}
+            />
+          )}
+
+          {view === 'ratio6' && (
+            <StandardsGrid
+              studentId="User123"
+              tableName="ratio_skills6"
+              totalCols={15}
+            />
           )}
         </div>
 
-        {/* Progress Summary (from Section 4.3 of your PRD) */}
         <div style={summaryStyle}>
           <div style={statStyle}><strong>0/144</strong><br/>Facts Mastered</div>
           <div style={statStyle}><strong>1 Day</strong><br/>Streak</div>
@@ -43,28 +54,27 @@ const Dashboard = (props) => {
         </div>
       </div>
 
-      {/* RIGHT HALF: App Icons */}
+      {/* RIGHT SIDE */}
       <div style={rightPanelStyle}>
         <h2 style={{ marginBottom: '30px', color: '#333' }}>Mission Control Apps</h2>
         
-        <div style={appIconStyle} onClick={props.onLaunchMath}>
+        <div style={appIconStyle}>
           <div style={iconBoxStyle}>🧮</div>
           <h3>Math Mastery</h3>
           <p style={{ color: '#666', fontSize: '14px' }}>Multiplication Practice</p>
         </div>
 
-        <div style={appIconStyle} onClick={() => alert('Quiz App coming soon!')}>
+        <div style={appIconStyle}>
           <div style={iconBoxStyle}>📝</div>
           <h3>My Quiz App</h3>
           <p style={{ color: '#666', fontSize: '14px' }}>Solo Quiz Mode</p>
         </div>
       </div>
-
     </div>
   );
 };
 
-// --- SUB-COMPONENT: The 12x12 Math Facts Grid ---
+/* Math Facts Grid */
 const MathFactsGrid = () => {
   const facts = Array.from({ length: 144 }, (_, i) => i + 1);
   return (
@@ -76,7 +86,7 @@ const MathFactsGrid = () => {
   );
 };
 
-// --- STYLES (The CSS) ---
+/* STYLES */
 const containerStyle = {
   display: 'flex',
   height: '100vh',
@@ -85,13 +95,12 @@ const containerStyle = {
 };
 
 const leftPanelStyle = {
-  flex: 1.2, // Left side is slightly wider
+  flex: 1.2,
   display: 'flex',
   flexDirection: 'column',
   padding: '30px',
   backgroundColor: '#fff',
-  borderRight: '1px solid #e0e0e0',
-  boxShadow: '4px 0 10px rgba(0,0,0,0.02)'
+  borderRight: '1px solid #e0e0e0'
 };
 
 const rightPanelStyle = {
@@ -104,31 +113,6 @@ const rightPanelStyle = {
   gap: '20px'
 };
 
-const toggleContainerStyle = {
-  display: 'flex',
-  backgroundColor: '#f0f0f0',
-  padding: '5px',
-  borderRadius: '10px',
-  width: 'fit-content'
-};
-
-const buttonStyle = {
-  padding: '10px 20px',
-  border: 'none',
-  borderRadius: '8px',
-  cursor: 'pointer',
-  backgroundColor: 'transparent',
-  fontWeight: '600',
-  color: '#666'
-};
-
-const activeButtonStyle = {
-  ...buttonStyle,
-  backgroundColor: '#fff',
-  color: '#000',
-  boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
-};
-
 const appIconStyle = {
   width: '280px',
   padding: '25px',
@@ -137,7 +121,6 @@ const appIconStyle = {
   textAlign: 'center',
   cursor: 'pointer',
   border: '1px solid #eee',
-  transition: 'transform 0.2s, box-shadow 0.2s',
   boxShadow: '0 4px 15px rgba(0,0,0,0.05)'
 };
 
