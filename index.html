@@ -4,42 +4,69 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Mission Control Prototype</title>
+
+    <!-- React -->
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+    <!-- Babel (for JSX in browser) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <style>
-      body { margin: 0; padding: 0; overflow: hidden; }
-      /* Mastery Colors */
-.cell.mastered { background-color: #22c55e; box-shadow: 0 0 10px #22c55e; }
-.cell.frontier_active { background-color: #f59e0b; box-shadow: 0 0 10px #f59e0b; }
-.cell.frontier_new { background-color: #38bdf8; box-shadow: 0 0 15px #38bdf8; }
-.cell.locked { background-color: #1e2129; border: 1px solid #2a2f3a; }
-.cell.empty { background-color: transparent; }
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: Arial, sans-serif;
+        background-color: #f4f7f6;
+      }
 
-/* The Grid Layout */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(20, 1fr);
-  gap: 4px;
-  background: #0d0f14;
-  padding: 10px;
-  border-radius: 8px;
-}
+      .grid {
+        display: grid;
+        gap: 4px;
+        background: #0d0f14;
+        padding: 10px;
+        border-radius: 8px;
+      }
 
-.cell {
-  aspect-ratio: 1/1;
-  border-radius: 2px;
-  cursor: pointer;
-}
+      .cell {
+        aspect-ratio: 1/1;
+        border-radius: 2px;
+        cursor: pointer;
+      }
+
+      .cell.mastered {
+        background-color: #22c55e;
+      }
+
+      .cell.frontier_active {
+        background-color: #f59e0b;
+      }
+
+      .cell.frontier_new {
+        background-color: #38bdf8;
+      }
+
+      .cell.locked {
+        background-color: #1e2129;
+        border: 1px solid #2a2f3a;
+      }
+
+      .cell.empty {
+        background-color: transparent;
+      }
     </style>
   </head>
+
   <body>
     <div id="root"></div>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
+
+    <!-- Order matters -->
     <script type="text/babel" src="supabaseClient.js"></script>
-<script type="text/babel" src="supabaseClient.js"></script>
-<script type="text/babel" src="StandardsGrid.js"></script> 
+    <script type="text/babel" src="StandardsGrid.js"></script>
+    <script type="text/babel" src="ScreenerApp.js"></script>
     <script type="text/babel" src="Dashboard.js"></script>
     <script type="text/babel" src="App.js"></script>
   </body>
