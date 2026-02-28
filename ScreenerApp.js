@@ -11,109 +11,125 @@ const ScreenerApp = ({ studentId, onFinish }) => {
   const [feedback, setFeedback] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Track mastery locally before writing to DB
+  // In-memory skill graph
+  const [skillMap, setSkillMap] = useState({});
   const masteredSkills = new Set();
   const notMasteredSkills = new Set();
 
   useEffect(() => {
-    loadNextQuestion(3);
+    initializeScreener();
   }, []);
 
   // -----------------------------
-  // Fetch skills for a given tier
+  // INITIALIZE: load all skills once
   // -----------------------------
-  const getSkillsForTier = async (tierNumber) => {
-    const tierLabel = `T${tierNumber}`;
+  const initializeScreener = async () => {
+    setLoading(true);
 
     const { data, error } = await supabaseClient
       .from("skills")
-      .select("*")
-      .eq("Tier", tierLabel);
+      .select("*");
 
-    if (error) throw error;
-    return data;
+    if (error) {
+      console.error(error);
+      return;
+    }
+
+    // Build skill map in memory
+    const map = {};
+
+    data.forEach(skill => {
+      map[skill.ID] = {
+        prereqs: skill.Prerequisites
+          ? skill.Prerequisites.split(";")
+              .map(s => s.trim())
+              .filter(Boolean)
+          : [],
+        tier: skill.Tier
+      };
+    });
+
+    setSkillMap(map);
+
+    await loadNextQuestion(3, map);
+
+    setLoading(false);
   };
 
   // -----------------------------
-  // Fetch difficulty 3 questions
+  // Recursive prerequisite closure (client-side)
   // -----------------------------
-  const getQuestionForSkill = async (skillId) => {
-    const { data, error } = await supabaseClient
-      .from("questions")
-      .select("*")
-      .eq("skill_id", skillId)
-      .eq("difficulty", 3);
-
-    if (error) throw error;
-    return data;
-  };
-
-  // -----------------------------
-  // Recursive prerequisite closure
-  // -----------------------------
-  const markFullPrerequisiteTree = async (skillId, visited = new Set()) => {
+  const markFullTree = (skillId, visited = new Set()) => {
     if (visited.has(skillId)) return;
     visited.add(skillId);
 
     masteredSkills.add(skillId);
 
-    const { data, error } = await supabaseClient
-      .from("skills")
-      .select("Prerequisites")
-      .eq("ID", skillId)
-      .single();
+    const prereqs = skillMap[skillId]?.prereqs || [];
 
-    if (error || !data || !data.Prerequisites) return;
+    prereqs.forEach(prereq => {
+      markFullTree(prereq, visited);
+    });
+  };
 
-    const prereqs = data.Prerequisites.split(";")
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
+  // -----------------------------
+  // Get skills for tier (from memory)
+  // -----------------------------
+  const getSkillsForTier = (tierNumber) => {
+    const tierLabel = `T${tierNumber}`;
 
-    for (let prereq of prereqs) {
-      await markFullPrerequisiteTree(prereq, visited);
-    }
+    return Object.entries(skillMap)
+      .filter(([_, value]) => value.tier === tierLabel)
+      .map(([id]) => id);
   };
 
   // -----------------------------
   // Load next question
   // -----------------------------
-  const loadNextQuestion = async (tierNumber) => {
+  const loadNextQuestion = async (tierNumber, map = skillMap) => {
     setLoading(true);
 
-    try {
-      const skills = await getSkillsForTier(tierNumber);
+    const skillsInTier = Object.entries(map)
+      .filter(([_, value]) => value.tier === `T${tierNumber}`)
+      .map(([id]) => id);
 
-      if (!skills || skills.length === 0) {
-        setLoading(false);
-        return;
-      }
-
-      const randomSkill =
-        skills[Math.floor(Math.random() * skills.length)];
-
-      const questions = await getQuestionForSkill(randomSkill.ID);
-
-      const unusedQuestions = questions.filter(
-        (q) => !usedQuestions.has(q.question_id)
-      );
-
-      if (unusedQuestions.length === 0) {
-        setLoading(false);
-        return;
-      }
-
-      const nextQuestion =
-        unusedQuestions[Math.floor(Math.random() * unusedQuestions.length)];
-
-      setCurrentQuestion(nextQuestion);
-      setUsedQuestions(
-        new Set([...usedQuestions, nextQuestion.question_id])
-      );
-      setInputValue("");
-      setFeedback(null);
-    } catch (err) {
-      console.error(err);
+    if (skillsInTier.length === 0) {
+      setLoading(false);
+      return;
     }
+
+    const randomSkill =
+      skillsInTier[Math.floor(Math.random() * skillsInTier.length)];
+
+    const { data, error } = await supabaseClient
+      .from("questions")
+      .select("*")
+      .eq("skill_id", randomSkill)
+      .eq("difficulty", 3);
+
+    if (error || !data || data.length === 0) {
+      setLoading(false);
+      return;
+    }
+
+    const unusedQuestions = data.filter(
+      (q) => !usedQuestions.has(q.question_id)
+    );
+
+    if (unusedQuestions.length === 0) {
+      setLoading(false);
+      return;
+    }
+
+    const nextQuestion =
+      unusedQuestions[Math.floor(Math.random() * unusedQuestions.length)];
+
+    setCurrentQuestion(nextQuestion);
+    setUsedQuestions(
+      new Set([...usedQuestions, nextQuestion.question_id])
+    );
+    setInputValue("");
+    setFeedback(null);
 
     setLoading(false);
   };
@@ -142,18 +158,19 @@ const ScreenerApp = ({ studentId, onFinish }) => {
     const skillId = currentQuestion.skill_id;
 
     if (isCorrect) {
-      await markFullPrerequisiteTree(skillId);
-      setCurrentTier((prev) => Math.min(prev + 1, 6));
+      markFullTree(skillId);
+      setCurrentTier(prev => Math.min(prev + 1, 6));
     } else {
       notMasteredSkills.add(skillId);
-      setCurrentTier((prev) => Math.max(prev - 1, 0));
+      setCurrentTier(prev => Math.max(prev - 1, 0));
     }
 
+    // Still log attempt immediately
     await supabaseClient.from("screener_attempts").insert({
       student_id: studentId,
       question_id: currentQuestion.question_id,
       skill_id: skillId,
-      correct: isCorrect,
+      correct: isCorrect
     });
 
     setTimeout(async () => {
@@ -163,36 +180,36 @@ const ScreenerApp = ({ studentId, onFinish }) => {
         return;
       }
 
-      setQuestionNumber((prev) => prev + 1);
+      setQuestionNumber(prev => prev + 1);
 
       const nextTier = isCorrect
         ? Math.min(currentTier + 1, 6)
         : Math.max(currentTier - 1, 0);
 
       loadNextQuestion(nextTier);
-    }, 800);
+    }, 300);
   };
 
   // -----------------------------
-  // Finalize mastery write
+  // Final mastery write (single DB call)
   // -----------------------------
   const finalizeMastery = async () => {
     const updates = [];
 
-    masteredSkills.forEach((skillId) => {
+    masteredSkills.forEach(skillId => {
       updates.push({
         student_id: studentId,
         skill_id: skillId,
-        status: "mastered",
+        status: "mastered"
       });
     });
 
-    notMasteredSkills.forEach((skillId) => {
+    notMasteredSkills.forEach(skillId => {
       if (!masteredSkills.has(skillId)) {
         updates.push({
           student_id: studentId,
           skill_id: skillId,
-          status: "locked",
+          status: "locked"
         });
       }
     });
@@ -223,7 +240,7 @@ const ScreenerApp = ({ studentId, onFinish }) => {
       </div>
 
       {prompt.type === "multiple_choice" &&
-        prompt.choices.map((choice) => (
+        prompt.choices.map(choice => (
           <button
             key={choice.id}
             onClick={() => handleSubmit(choice.id)}
@@ -231,7 +248,7 @@ const ScreenerApp = ({ studentId, onFinish }) => {
               display: "block",
               margin: "10px 0",
               padding: "10px",
-              width: "100%",
+              width: "100%"
             }}
           >
             {choice.text}
@@ -251,7 +268,7 @@ const ScreenerApp = ({ studentId, onFinish }) => {
             style={{
               marginTop: "10px",
               padding: "10px",
-              width: "100%",
+              width: "100%"
             }}
           >
             Submit
@@ -267,7 +284,7 @@ const ScreenerApp = ({ studentId, onFinish }) => {
             color:
               feedback === "correct"
                 ? "green"
-                : "red",
+                : "red"
           }}
         >
           {feedback === "correct" ? "✓" : "✗"}
