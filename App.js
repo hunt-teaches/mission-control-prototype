@@ -8,6 +8,7 @@ const App = () => {
       {currentView === "dashboard" && (
         <Dashboard
           onLaunchScreener={() => setCurrentView("screener")}
+          onLaunchUnitBuilder={() => setCurrentView("unitBuilder")}
         />
       )}
 
@@ -15,6 +16,13 @@ const App = () => {
         <ScreenerApp
           studentId="User123"
           onFinish={() => setCurrentView("dashboard")}
+        />
+      )}
+
+      {currentView === "unitBuilder" && (
+        <UnitBuilder
+          teacherId="Teacher1"
+          onBack={() => setCurrentView("dashboard")}
         />
       )}
     </>

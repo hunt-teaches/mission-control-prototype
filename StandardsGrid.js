@@ -1,177 +1,157 @@
 const { useState, useEffect } = React;
 
-const StandardsGrid = ({ 
-  studentId, 
-  tableName = 'skills', 
-  totalCols = 20 
+const StandardsGrid = ({
+  studentId,
+  tableName = "skills",
+  totalCols = 15,
+  customSkills = null
 }) => {
   const [skills, setSkills] = useState([]);
   const [mastery, setMastery] = useState({});
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [selectedSkill, setSelectedSkill] = useState(null);
 
   useEffect(() => {
     fetchData();
   }, [studentId, tableName]);
 
   const fetchData = async () => {
-    try {
-      setLoading(true);
+    setLoading(true);
 
-      const { data: skillsData, error: skillsError } = await supabaseClient
-        .from(tableName)
-        .select('*');
+    const { data: skillsData, error: skillsError } =
+      await supabaseClient.from(tableName).select("*");
 
-      if (skillsError) throw skillsError;
-      if (!skillsData || skillsData.length === 0) {
-        setError("Skills table is empty.");
-        return;
-      }
-
-      const { data: masteryData } = await supabaseClient
-        .from('student_mastery')
-        .select('skill_id, status')
-        .eq('student_id', studentId);
-
-      const masteryMap = {};
-      masteryData?.forEach(m => {
-        masteryMap[m.skill_id] = m.status;
-      });
-
-      setSkills(skillsData);
-      setMastery(masteryMap);
-
-    } catch (err) {
-      console.error("Database Error:", err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    if (skillsError) {
+      console.error(skillsError);
+      return;
     }
+
+    const { data: masteryData } =
+      await supabaseClient
+        .from("student_mastery")
+        .select("skill_id, status")
+        .eq("student_id", studentId);
+
+    const masteryMap = {};
+    masteryData?.forEach(m => {
+      masteryMap[m.skill_id] = m.status;
+    });
+
+    setSkills(skillsData || []);
+    setMastery(masteryMap);
+    setLoading(false);
   };
 
-  if (loading)
-    return <div style={{ color: 'white', padding: '20px' }}>Loading grid...</div>;
+  if (loading) {
+    return <div style={{ padding: "30px" }}>Loading...</div>;
+  }
 
-  if (error)
-    return <div style={{ color: 'red', padding: '20px' }}>Error: {error}</div>;
+  // ---------------------------------------------------
+  // Use customSkills if provided (for Unit Builder preview)
+  // ---------------------------------------------------
 
-  // Dynamically determine grid height
-  const maxRow = Math.max(...skills.map(s => s.row || 0));
-  const TOTAL_ROWS = maxRow + 1;
+  const baseSkills = customSkills || skills;
 
-  const grid = Array.from({ length: TOTAL_ROWS }, () =>
-    Array(totalCols).fill(null)
-  );
+  if (!baseSkills || baseSkills.length === 0) {
+    return <div style={{ padding: "20px" }}>No skills selected.</div>;
+  }
 
-  skills.forEach(skill => {
-    if (
-      skill.row !== null &&
-      skill.col !== null &&
-      skill.row >= 0 &&
-      skill.col >= 0 &&
-      skill.col < totalCols
-    ) {
-      grid[skill.row][skill.col] = skill;
-    }
+  // ---------------------------------------------------
+  // 1. Sort internally by tier (hidden structure)
+  // ---------------------------------------------------
+
+  const sortedSkills = [...baseSkills].sort((a, b) => {
+    const tierA = parseInt(a.Tier.replace("T", ""));
+    const tierB = parseInt(b.Tier.replace("T", ""));
+    return tierA - tierB;
   });
 
+  // ---------------------------------------------------
+  // 2. Pack into full rows (no mid-grid gaps)
+  // ---------------------------------------------------
+
+  const totalSkills = sortedSkills.length;
+  const fullRows = Math.floor(totalSkills / totalCols);
+  const remainder = totalSkills % totalCols;
+  const totalRows = remainder === 0 ? fullRows : fullRows + 1;
+
+  const grid = [];
+  let skillIndex = 0;
+
+  for (let row = 0; row < totalRows; row++) {
+    const rowArray = [];
+
+    if (row === totalRows - 1 && remainder !== 0) {
+      // Top row — center remaining skills
+      const emptyLeft = Math.floor((totalCols - remainder) / 2);
+      const emptyRight = totalCols - remainder - emptyLeft;
+
+      for (let i = 0; i < emptyLeft; i++) {
+        rowArray.push(null);
+      }
+
+      for (let i = 0; i < remainder; i++) {
+        rowArray.push(sortedSkills[skillIndex++] || null);
+      }
+
+      for (let i = 0; i < emptyRight; i++) {
+        rowArray.push(null);
+      }
+    } else {
+      // Full row
+      for (let col = 0; col < totalCols; col++) {
+        rowArray.push(sortedSkills[skillIndex++] || null);
+      }
+    }
+
+    grid.push(rowArray);
+  }
+
+  // Reverse so visually bottom row contains lowest tier
+  grid.reverse();
+
   return (
-    <div style={{ background: '#0d0f14', padding: '10px', borderRadius: '8px' }}>
-      
+    <div
+      style={{
+        background: "#0d0f14",
+        padding: "20px",
+        borderRadius: "12px"
+      }}
+    >
       <div
-        className="grid"
         style={{
-          display: 'grid',
+          display: "grid",
           gridTemplateColumns: `repeat(${totalCols}, 1fr)`,
-          gridTemplateRows: `repeat(${TOTAL_ROWS}, 1fr)`,
-          gap: '4px'
+          gap: "6px"
         }}
       >
         {grid.flat().map((skill, index) => {
-          const skillId = skill?.id || skill?.ID;
-          const status = skillId ? (mastery[skillId] || 'locked') : 'empty';
+          if (!skill) {
+            return <div key={index} />;
+          }
+
+          const status = mastery[skill.ID] || "locked";
 
           return (
             <div
               key={index}
-              className={`cell ${status}`}
-              onClick={() => skill && setSelectedSkill(skill)}
               style={{
-                borderRadius: '2px',
-                cursor: skill ? 'pointer' : 'default',
-                backgroundColor: !skill
-                  ? 'transparent'
-                  : status === 'locked'
-                  ? '#1e2129'
-                  : undefined,
+                aspectRatio: "1 / 1",
+                borderRadius: "6px",
+                backgroundColor:
+                  status === "mastered"
+                    ? "#22c55e"
+                    : "#1e2129",
                 border:
-                  skill && status === 'locked'
-                    ? '1px solid #2a2f3a'
-                    : 'none',
-                transition: 'all 0.2s'
+                  status === "mastered"
+                    ? "none"
+                    : "1px solid #2a2f3a",
+                cursor: "default"
               }}
-              title={skill ? skill["Skill Name"] : ''}
+              title={skill["Skill Name"]}
             />
           );
         })}
       </div>
-
-      {selectedSkill && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.85)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000
-          }}
-          onClick={() => setSelectedSkill(null)}
-        >
-          <div
-            style={{
-              background: '#161920',
-              padding: '30px',
-              borderRadius: '15px',
-              maxWidth: '400px',
-              border: '1px solid #252830',
-              color: 'white'
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            <div style={{ fontSize: '12px', color: '#7c3aed', textTransform: 'uppercase' }}>
-              {selectedSkill.Tier} • {selectedSkill.Domain}
-            </div>
-
-            <h2 style={{ margin: '10px 0' }}>
-              {selectedSkill["Skill Name"]}
-            </h2>
-
-            <p style={{ color: '#aaa', lineHeight: '1.6' }}>
-              {selectedSkill["The Goal"]}
-            </p>
-
-            <button
-              onClick={() => setSelectedSkill(null)}
-              style={{
-                marginTop: '20px',
-                width: '100%',
-                padding: '12px',
-                background: '#7c3aed',
-                border: 'none',
-                borderRadius: '8px',
-                color: 'white',
-                fontWeight: 'bold',
-                cursor: 'pointer'
-              }}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
