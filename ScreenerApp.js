@@ -9,14 +9,19 @@ const ScreenerApp = ({ studentId, onFinish }) => {
   const [usedQuestions, setUsedQuestions] = useState(new Set());
   const [inputValue, setInputValue] = useState("");
   const [feedback, setFeedback] = useState(null);
-  const [masteredSkills, setMasteredSkills] = useState(new Set());
-  const [notMasteredSkills, setNotMasteredSkills] = useState(new Set());
   const [loading, setLoading] = useState(true);
 
+  // Track mastery locally before writing to DB
+  const masteredSkills = new Set();
+  const notMasteredSkills = new Set();
+
   useEffect(() => {
-    loadNextQuestion(currentTier);
+    loadNextQuestion(3);
   }, []);
 
+  // -----------------------------
+  // Fetch skills for a given tier
+  // -----------------------------
   const getSkillsForTier = async (tierNumber) => {
     const tierLabel = `T${tierNumber}`;
 
@@ -29,6 +34,9 @@ const ScreenerApp = ({ studentId, onFinish }) => {
     return data;
   };
 
+  // -----------------------------
+  // Fetch difficulty 3 questions
+  // -----------------------------
   const getQuestionForSkill = async (skillId) => {
     const { data, error } = await supabaseClient
       .from("questions")
@@ -40,6 +48,35 @@ const ScreenerApp = ({ studentId, onFinish }) => {
     return data;
   };
 
+  // -----------------------------
+  // Recursive prerequisite closure
+  // -----------------------------
+  const markFullPrerequisiteTree = async (skillId, visited = new Set()) => {
+    if (visited.has(skillId)) return;
+    visited.add(skillId);
+
+    masteredSkills.add(skillId);
+
+    const { data, error } = await supabaseClient
+      .from("skills")
+      .select("Prerequisites")
+      .eq("ID", skillId)
+      .single();
+
+    if (error || !data || !data.Prerequisites) return;
+
+    const prereqs = data.Prerequisites.split(";")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    for (let prereq of prereqs) {
+      await markFullPrerequisiteTree(prereq, visited);
+    }
+  };
+
+  // -----------------------------
+  // Load next question
+  // -----------------------------
   const loadNextQuestion = async (tierNumber) => {
     setLoading(true);
 
@@ -81,22 +118,9 @@ const ScreenerApp = ({ studentId, onFinish }) => {
     setLoading(false);
   };
 
-  const markPrerequisites = async (skillId) => {
-    const { data } = await supabaseClient
-      .from("skills")
-      .select("Prerequisites")
-      .eq("ID", skillId)
-      .single();
-
-    if (data && data.Prerequisites) {
-      const prereqs = data.Prerequisites.split(";")
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0);
-
-      prereqs.forEach((p) => masteredSkills.add(p));
-    }
-  };
-
+  // -----------------------------
+  // Submit handler
+  // -----------------------------
   const handleSubmit = async (answer) => {
     if (!currentQuestion) return;
 
@@ -118,8 +142,7 @@ const ScreenerApp = ({ studentId, onFinish }) => {
     const skillId = currentQuestion.skill_id;
 
     if (isCorrect) {
-      masteredSkills.add(skillId);
-      await markPrerequisites(skillId);
+      await markFullPrerequisiteTree(skillId);
       setCurrentTier((prev) => Math.min(prev + 1, 6));
     } else {
       notMasteredSkills.add(skillId);
@@ -141,14 +164,18 @@ const ScreenerApp = ({ studentId, onFinish }) => {
       }
 
       setQuestionNumber((prev) => prev + 1);
-      loadNextQuestion(
-        isCorrect
-          ? Math.min(currentTier + 1, 6)
-          : Math.max(currentTier - 1, 0)
-      );
+
+      const nextTier = isCorrect
+        ? Math.min(currentTier + 1, 6)
+        : Math.max(currentTier - 1, 0);
+
+      loadNextQuestion(nextTier);
     }, 800);
   };
 
+  // -----------------------------
+  // Finalize mastery write
+  // -----------------------------
   const finalizeMastery = async () => {
     const updates = [];
 
@@ -171,10 +198,15 @@ const ScreenerApp = ({ studentId, onFinish }) => {
     });
 
     if (updates.length > 0) {
-      await supabaseClient.from("student_mastery").upsert(updates);
+      await supabaseClient
+        .from("student_mastery")
+        .upsert(updates);
     }
   };
 
+  // -----------------------------
+  // Render
+  // -----------------------------
   if (loading || !currentQuestion)
     return <div style={{ padding: "40px" }}>Loading...</div>;
 
@@ -182,7 +214,9 @@ const ScreenerApp = ({ studentId, onFinish }) => {
 
   return (
     <div style={{ padding: "40px", maxWidth: "600px", margin: "auto" }}>
-      <h3>Question {questionNumber} of {TOTAL_QUESTIONS}</h3>
+      <h3>
+        Question {questionNumber} of {TOTAL_QUESTIONS}
+      </h3>
 
       <div style={{ margin: "30px 0", fontSize: "20px" }}>
         {prompt.stem}
@@ -214,7 +248,11 @@ const ScreenerApp = ({ studentId, onFinish }) => {
           />
           <button
             onClick={() => handleSubmit(inputValue)}
-            style={{ marginTop: "10px", padding: "10px", width: "100%" }}
+            style={{
+              marginTop: "10px",
+              padding: "10px",
+              width: "100%",
+            }}
           >
             Submit
           </button>
@@ -226,7 +264,10 @@ const ScreenerApp = ({ studentId, onFinish }) => {
           style={{
             marginTop: "20px",
             fontSize: "24px",
-            color: feedback === "correct" ? "green" : "red",
+            color:
+              feedback === "correct"
+                ? "green"
+                : "red",
           }}
         >
           {feedback === "correct" ? "✓" : "✗"}
