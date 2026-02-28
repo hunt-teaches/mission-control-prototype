@@ -1,6 +1,6 @@
 const { useState } = React;
 
-const Dashboard = ({ onLaunchScreener }) => {
+const Dashboard = ({ onLaunchScreener, onLaunchUnitBuilder }) => {
   const [view, setView] = useState("facts");
 
   return (
@@ -21,7 +21,7 @@ const Dashboard = ({ onLaunchScreener }) => {
             <StandardsGrid
               studentId="User123"
               tableName="skills"
-              totalCols={20}
+              totalCols={15}
             />
           )}
           {view === "ratio6" && (
@@ -42,6 +42,13 @@ const Dashboard = ({ onLaunchScreener }) => {
           style={{ marginTop: "20px", padding: "15px" }}
         >
           🚀 Adaptive Screener
+        </button>
+
+        <button
+          onClick={onLaunchUnitBuilder}
+          style={{ marginTop: "10px", padding: "15px" }}
+        >
+          🧩 Unit Builder
         </button>
       </div>
     </div>
