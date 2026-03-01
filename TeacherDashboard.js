@@ -15,10 +15,18 @@ const TeacherDashboard = ({ onBack }) => {
 
   const loadData = async () => {
     const { data: skillsData } =
-      await supabaseClient.from("skills").select("*");
+      await supabaseClient
+        .from("skills")
+        .select("*")
+        .range(0, 10000);
 
     const { data: questionData } =
-      await supabaseClient.from("questions").select("*");
+      await supabaseClient
+        .from("questions")
+        .select("*")
+        .range(0, 10000);
+
+    console.log("Loaded questions:", questionData.length);
 
     setSkills(skillsData || []);
     setQuestions(questionData || []);
@@ -28,7 +36,6 @@ const TeacherDashboard = ({ onBack }) => {
     return skills.find(s => s.ID === skillId);
   };
 
-  // ----- SORT QUESTIONS BY TIER FIRST -----
   const sortedQuestions = [...questions].sort((a, b) => {
     const skillA = getSkillMeta(a.skill_id);
     const skillB = getSkillMeta(b.skill_id);
