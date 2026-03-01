@@ -17,9 +17,13 @@ const UnitBuilder = ({ teacherId, onBack }) => {
 
   const [skillToRemove, setSkillToRemove] = useState(null);
 
+  const [showGlobal, setShowGlobal] = useState(true);
+  const [globalIsDefault, setGlobalIsDefault] = useState(false);
+
   useEffect(() => {
     loadSkills();
     loadUnits();
+    loadGlobalSettings();
   }, []);
 
   const loadSkills = async () => {
@@ -34,6 +38,19 @@ const UnitBuilder = ({ teacherId, onBack }) => {
       .eq("teacher_id", teacherId);
 
     setUnits(data || []);
+  };
+
+  const loadGlobalSettings = async () => {
+    const { data } = await supabaseClient
+      .from("teacher_settings")
+      .select("*")
+      .eq("teacher_id", teacherId)
+      .single();
+
+    if (data) {
+      setShowGlobal(data.show_global_grid);
+      setGlobalIsDefault(data.global_is_default);
+    }
   };
 
   const buildSkillMap = () => {
@@ -86,7 +103,6 @@ const UnitBuilder = ({ teacherId, onBack }) => {
 
   const confirmRemove = () => {
     if (!skillToRemove) return;
-
     const newSet = new Set(selectedGoals);
     newSet.delete(skillToRemove.ID);
     setSelectedGoals(newSet);
@@ -113,7 +129,7 @@ const UnitBuilder = ({ teacherId, onBack }) => {
     <div style={{ padding: "30px" }}>
       <button onClick={onBack}>← Back</button>
 
-      <h2>Create / Edit Unit</h2>
+      <h2>{editingUnitId ? "Edit Unit" : "Create Unit"}</h2>
 
       <input
         type="text"
@@ -171,7 +187,15 @@ const UnitBuilder = ({ teacherId, onBack }) => {
 
         <div style={{ flex: 1, maxHeight: "600px", overflowY: "auto" }}>
           {tiers.map(tier => {
-            const skillsInTier = previewSkills.filter(s => s.Tier === tier);
+            const skillsInTier = previewSkills
+              .filter(s => s.Tier === tier)
+              .sort((a, b) => {
+                const aGoal = selectedGoals.has(a.ID) ? 0 : 1;
+                const bGoal = selectedGoals.has(b.ID) ? 0 : 1;
+                if (aGoal !== bGoal) return aGoal - bGoal;
+                return a["Skill Name"].localeCompare(b["Skill Name"]);
+              });
+
             const isCollapsed = collapsedTiers.has(tier);
 
             return (
@@ -231,7 +255,30 @@ const UnitBuilder = ({ teacherId, onBack }) => {
         </div>
       </div>
 
-      {/* CONFIRMATION MODAL */}
+      {/* EXISTING UNITS */}
+      <h3 style={{ marginTop: "40px" }}>Existing Units</h3>
+
+      {units.map(unit => (
+        <div key={unit.id} style={{ marginBottom: "10px" }}>
+          <strong>{unit.name}</strong>
+          <div>
+            <button onClick={() => startEditUnit(unit)}>Edit</button>
+          </div>
+        </div>
+      ))}
+
+      {/* GLOBAL GRID */}
+      <h3 style={{ marginTop: "40px" }}>Global Grid</h3>
+
+      <button onClick={toggleGlobalVisibility}>
+        {showGlobal ? "Hide Global Grid" : "Show Global Grid"}
+      </button>
+
+      <button onClick={() => setGlobalIsDefault(true)} style={{ marginLeft: "10px" }}>
+        {globalIsDefault ? "Default" : "Set As Default"}
+      </button>
+
+      {/* CONFIRM MODAL */}
       {skillToRemove && (
         <div style={{
           position: "fixed",
