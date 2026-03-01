@@ -13,13 +13,9 @@ const UnitBuilder = ({ teacherId, onBack }) => {
 
   const [editingUnitId, setEditingUnitId] = useState(null);
 
-  const [showGlobal, setShowGlobal] = useState(true);
-  const [globalIsDefault, setGlobalIsDefault] = useState(false);
-
   useEffect(() => {
     loadSkills();
     loadUnits();
-    loadGlobalSettings();
   }, []);
 
   const loadSkills = async () => {
@@ -34,19 +30,6 @@ const UnitBuilder = ({ teacherId, onBack }) => {
       .eq("teacher_id", teacherId);
 
     setUnits(data || []);
-  };
-
-  const loadGlobalSettings = async () => {
-    const { data } = await supabaseClient
-      .from("teacher_settings")
-      .select("*")
-      .eq("teacher_id", teacherId)
-      .single();
-
-    if (data) {
-      setShowGlobal(data.show_global_grid);
-      setGlobalIsDefault(data.global_is_default);
-    }
   };
 
   const buildSkillMap = () => {
@@ -148,78 +131,15 @@ const UnitBuilder = ({ teacherId, onBack }) => {
     loadUnits();
   };
 
-  const toggleVisibility = async (unit) => {
-    await supabaseClient
-      .from("units")
-      .update({ visible_to_students: !unit.visible_to_students })
-      .eq("id", unit.id);
-
-    loadUnits();
-  };
-
-  const setDefaultUnit = async (unitId) => {
-    // Remove global default
-    await supabaseClient
-      .from("teacher_settings")
-      .upsert({
-        teacher_id: teacherId,
-        show_global_grid: showGlobal,
-        global_is_default: false
-      });
-
-    // Remove default from all units
-    await supabaseClient
-      .from("units")
-      .update({ is_default: false })
-      .eq("teacher_id", teacherId);
-
-    // Set this unit as default
-    await supabaseClient
-      .from("units")
-      .update({ is_default: true })
-      .eq("id", unitId);
-
-    loadUnits();
-    setGlobalIsDefault(false);
-  };
-
-  const toggleGlobalVisibility = async () => {
-    await supabaseClient
-      .from("teacher_settings")
-      .upsert({
-        teacher_id: teacherId,
-        show_global_grid: !showGlobal,
-        global_is_default: globalIsDefault
-      });
-
-    setShowGlobal(!showGlobal);
-  };
-
-  const setGlobalDefault = async () => {
-    // Remove unit defaults
-    await supabaseClient
-      .from("units")
-      .update({ is_default: false })
-      .eq("teacher_id", teacherId);
-
-    await supabaseClient
-      .from("teacher_settings")
-      .upsert({
-        teacher_id: teacherId,
-        show_global_grid: showGlobal,
-        global_is_default: true
-      });
-
-    setGlobalIsDefault(true);
-    loadUnits();
-  };
+  const tiers = [...new Set(previewSkills.map(s => s.Tier))]
+    .sort((a, b) => parseInt(b.replace("T", "")) - parseInt(a.replace("T", "")));
 
   const filteredSkills = skills.filter(skill =>
     (filterTier === "" || skill.Tier === filterTier) &&
     (filterDomain === "" || skill.Domain === filterDomain)
   );
 
-  const tiers = [...new Set(skills.map(s => s.Tier))];
+  const allTiers = [...new Set(skills.map(s => s.Tier))];
   const domains = [...new Set(skills.map(s => s.Domain))];
 
   return (
@@ -239,7 +159,7 @@ const UnitBuilder = ({ teacherId, onBack }) => {
       <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
         <select value={filterTier} onChange={e => setFilterTier(e.target.value)}>
           <option value="">All Tiers</option>
-          {tiers.map(t => <option key={t}>{t}</option>)}
+          {allTiers.map(t => <option key={t}>{t}</option>)}
         </select>
 
         <select value={filterDomain} onChange={e => setFilterDomain(e.target.value)}>
@@ -265,40 +185,57 @@ const UnitBuilder = ({ teacherId, onBack }) => {
         {editingUnitId ? "Update Unit" : "Save Unit"}
       </button>
 
+      {/* SPLIT SCREEN PREVIEW */}
       <h3 style={{ marginTop: "30px" }}>Preview ({previewSkills.length} skills)</h3>
 
-      <StandardsGrid
-        studentId="User123"
-        customSkills={previewSkills}
-        totalCols={15}
-      />
+      <div style={{ display: "flex", gap: "30px", marginTop: "20px" }}>
 
-      <h3 style={{ marginTop: "30px" }}>Existing Units</h3>
+        {/* LEFT SIDE — GRID */}
+        <div style={{ flex: 1 }}>
+          <StandardsGrid
+            studentId="User123"
+            customSkills={previewSkills}
+            totalCols={15}
+          />
+        </div>
+
+        {/* RIGHT SIDE — SKILL LIST */}
+        <div style={{ flex: 1, maxHeight: "600px", overflowY: "auto" }}>
+          {tiers.map(tier => {
+            const skillsInTier = previewSkills
+              .filter(s => s.Tier === tier)
+              .sort((a, b) => {
+                const aGoal = selectedGoals.has(a.ID) ? 0 : 1;
+                const bGoal = selectedGoals.has(b.ID) ? 0 : 1;
+                if (aGoal !== bGoal) return aGoal - bGoal;
+                return a["Skill Name"].localeCompare(b["Skill Name"]);
+              });
+
+            return (
+              <div key={tier} style={{ marginBottom: "20px" }}>
+                <h4>{`Tier ${tier.replace("T", "")}`}</h4>
+                {skillsInTier.map(skill => (
+                  <div key={skill.ID} style={{ marginBottom: "4px" }}>
+                    {selectedGoals.has(skill.ID) && "🎯 "}
+                    {skill["Skill Name"]}
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <h3 style={{ marginTop: "40px" }}>Existing Units</h3>
 
       {units.map(unit => (
         <div key={unit.id} style={{ marginBottom: "10px" }}>
           <strong>{unit.name}</strong>
           <div>
             <button onClick={() => startEditUnit(unit)}>Edit</button>
-            <button onClick={() => toggleVisibility(unit)} style={{ marginLeft: "10px" }}>
-              {unit.visible_to_students ? "Hide" : "Show"}
-            </button>
-            <button onClick={() => setDefaultUnit(unit.id)} style={{ marginLeft: "10px" }}>
-              {unit.is_default ? "Default" : "Set Default"}
-            </button>
           </div>
         </div>
       ))}
-
-      <h3 style={{ marginTop: "40px" }}>Global Grid Settings</h3>
-
-      <button onClick={toggleGlobalVisibility}>
-        {showGlobal ? "Hide Global Grid" : "Show Global Grid"}
-      </button>
-
-      <button onClick={setGlobalDefault} style={{ marginLeft: "10px" }}>
-        {globalIsDefault ? "Default" : "Set As Default"}
-      </button>
     </div>
   );
 };
