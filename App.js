@@ -1,11 +1,43 @@
 const { useState } = React;
 
 const App = () => {
+  const [mode, setMode] = useState("teacher"); 
   const [currentView, setCurrentView] = useState("dashboard");
   const [activeUnitId, setActiveUnitId] = useState(null);
 
   return (
     <>
+      {mode === "teacher" && (
+        <div style={{
+          padding: "10px",
+          background: "#111827",
+          color: "white"
+        }}>
+          <button
+            onClick={() => setMode("student")}
+            style={{ marginRight: "10px" }}
+          >
+            Switch to Student View
+          </button>
+
+          <button
+            onClick={() => setCurrentView("teacherDashboard")}
+          >
+            Teacher Dashboard
+          </button>
+        </div>
+      )}
+
+      {mode === "student" && (
+        <div style={{
+          padding: "10px",
+          background: "#0d0f14",
+          color: "white"
+        }}>
+          Student View
+        </div>
+      )}
+
       {currentView === "dashboard" && (
         <Dashboard
           onLaunchGlobalScreener={() => {
@@ -16,7 +48,6 @@ const App = () => {
             setActiveUnitId(unitId);
             setCurrentView("screener");
           }}
-          onLaunchUnitBuilder={() => setCurrentView("unitBuilder")}
         />
       )}
 
@@ -28,9 +59,8 @@ const App = () => {
         />
       )}
 
-      {currentView === "unitBuilder" && (
-        <UnitBuilder
-          teacherId="Teacher1"
+      {currentView === "teacherDashboard" && mode === "teacher" && (
+        <TeacherDashboard
           onBack={() => setCurrentView("dashboard")}
         />
       )}
