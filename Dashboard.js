@@ -6,15 +6,35 @@ const Dashboard = ({ onLaunchScreener, onLaunchUnitBuilder }) => {
   const [availableGrids, setAvailableGrids] = useState([]);
   const [selectedGrid, setSelectedGrid] = useState(null);
   const [skills, setSkills] = useState([]);
+  const [masteryMap, setMasteryMap] = useState({});
+
+  const [coreSkills, setCoreSkills] = useState([]);
+  const [extensionSkills, setExtensionSkills] = useState([]);
+  const [coreFullyMastered, setCoreFullyMastered] = useState(false);
 
   useEffect(() => {
     loadSkills();
+    loadMastery();
     loadGrids();
   }, []);
 
   const loadSkills = async () => {
     const { data } = await supabaseClient.from("skills").select("*");
     setSkills(data || []);
+  };
+
+  const loadMastery = async () => {
+    const { data } = await supabaseClient
+      .from("student_mastery")
+      .select("skill_id, status")
+      .eq("student_id", studentId);
+
+    const map = {};
+    data?.forEach(row => {
+      map[row.skill_id] = row.status;
+    });
+
+    setMasteryMap(map);
   };
 
   const loadGrids = async () => {
@@ -100,8 +120,11 @@ const Dashboard = ({ onLaunchScreener, onLaunchUnitBuilder }) => {
     return extension;
   };
 
-  const [coreSkills, setCoreSkills] = useState([]);
-  const [extensionSkills, setExtensionSkills] = useState([]);
+  const checkCoreMastery = (coreSet) => {
+    return coreSet.every(skill =>
+      masteryMap[skill.ID] === "mastered"
+    );
+  };
 
   useEffect(() => {
     if (!selectedGrid) return;
@@ -109,15 +132,20 @@ const Dashboard = ({ onLaunchScreener, onLaunchUnitBuilder }) => {
     if (selectedGrid.type === "global") {
       setCoreSkills(skills);
       setExtensionSkills([]);
+      setCoreFullyMastered(false);
     }
 
     if (selectedGrid.type === "unit") {
       computeCoreSet(selectedGrid.id).then(core => {
+        const extension = computeExtensionSet(core);
+        const fullyMastered = checkCoreMastery(core);
+
         setCoreSkills(core);
-        setExtensionSkills(computeExtensionSet(core));
+        setExtensionSkills(extension);
+        setCoreFullyMastered(fullyMastered);
       });
     }
-  }, [selectedGrid, skills]);
+  }, [selectedGrid, skills, masteryMap]);
 
   return (
     <div style={{ display: "flex", height: "100vh" }}>
@@ -125,7 +153,9 @@ const Dashboard = ({ onLaunchScreener, onLaunchUnitBuilder }) => {
         <select
           value={selectedGrid?.name}
           onChange={(e) => {
-            const grid = availableGrids.find(g => g.name === e.target.value);
+            const grid = availableGrids.find(
+              g => g.name === e.target.value
+            );
             setSelectedGrid(grid);
           }}
         >
@@ -135,18 +165,35 @@ const Dashboard = ({ onLaunchScreener, onLaunchUnitBuilder }) => {
         </select>
 
         <div style={{ marginTop: "20px" }}>
-          {extensionSkills.length > 0 && (
+
+          {selectedGrid?.type === "unit" && extensionSkills.length > 0 && (
             <>
               <h4>Extension Zone</h4>
-              <StandardsGrid
-                studentId={studentId}
-                customSkills={extensionSkills}
-                totalCols={15}
-              />
+
+              {!coreFullyMastered && (
+                <div style={{
+                  marginBottom: "15px",
+                  padding: "10px",
+                  background: "#1e2129",
+                  color: "#f59e0b",
+                  borderRadius: "6px"
+                }}>
+                  Master all core skills to unlock extension.
+                </div>
+              )}
+
+              {coreFullyMastered && (
+                <StandardsGrid
+                  studentId={studentId}
+                  customSkills={extensionSkills}
+                  totalCols={15}
+                />
+              )}
             </>
           )}
 
           <h4>Core Skills</h4>
+
           <StandardsGrid
             studentId={studentId}
             customSkills={coreSkills}
