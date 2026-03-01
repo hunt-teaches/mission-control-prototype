@@ -2,8 +2,7 @@ const { useState, useEffect } = React;
 
 const Dashboard = ({
   onLaunchGlobalScreener,
-  onLaunchUnitScreener,
-  onLaunchUnitBuilder
+  onLaunchUnitScreener
 }) => {
   const studentId = "User123";
 
@@ -152,93 +151,74 @@ const Dashboard = ({
   }, [selectedGrid, skills, masteryMap]);
 
   return (
-    <div style={{ display: "flex", height: "100vh" }}>
-      <div style={{ flex: 1, padding: "30px" }}>
-        <select
-          value={selectedGrid?.name}
-          onChange={(e) => {
-            const grid = availableGrids.find(
-              g => g.name === e.target.value
-            );
-            setSelectedGrid(grid);
-          }}
-        >
-          {availableGrids.map(g => (
-            <option key={g.name}>{g.name}</option>
-          ))}
-        </select>
+    <div style={{ padding: "30px" }}>
+      <select
+        value={selectedGrid?.name}
+        onChange={(e) => {
+          const grid = availableGrids.find(
+            g => g.name === e.target.value
+          );
+          setSelectedGrid(grid);
+        }}
+      >
+        {availableGrids.map(g => (
+          <option key={g.name}>{g.name}</option>
+        ))}
+      </select>
 
-        <div style={{ marginTop: "20px" }}>
+      <div style={{ marginTop: "20px" }}>
 
-          {selectedGrid?.type === "unit" && (
-            <button
-              onClick={() => onLaunchUnitScreener(selectedGrid.id)}
-              style={{
+        {selectedGrid?.type === "unit" && (
+          <button
+            onClick={() => onLaunchUnitScreener(selectedGrid.id)}
+            style={{ marginBottom: "15px", padding: "10px 15px" }}
+          >
+            🚀 Start Unit Screener
+          </button>
+        )}
+
+        {selectedGrid?.type === "global" && (
+          <button
+            onClick={onLaunchGlobalScreener}
+            style={{ marginBottom: "15px", padding: "10px 15px" }}
+          >
+            🚀 Start Global Screener
+          </button>
+        )}
+
+        {selectedGrid?.type === "unit" && extensionSkills.length > 0 && (
+          <>
+            <h4>Extension Zone</h4>
+
+            {!coreFullyMastered && (
+              <div style={{
                 marginBottom: "15px",
-                padding: "10px 15px"
-              }}
-            >
-              🚀 Start Unit Screener
-            </button>
-          )}
+                padding: "10px",
+                background: "#1e2129",
+                color: "#f59e0b",
+                borderRadius: "6px"
+              }}>
+                Master all core skills to unlock extension.
+              </div>
+            )}
 
-          {selectedGrid?.type === "global" && (
-            <button
-              onClick={onLaunchGlobalScreener}
-              style={{
-                marginBottom: "15px",
-                padding: "10px 15px"
-              }}
-            >
-              🚀 Start Global Screener
-            </button>
-          )}
+            {coreFullyMastered && (
+              <StandardsGrid
+                studentId={studentId}
+                customSkills={extensionSkills}
+                totalCols={15}
+              />
+            )}
+          </>
+        )}
 
-          {selectedGrid?.type === "unit" && extensionSkills.length > 0 && (
-            <>
-              <h4>Extension Zone</h4>
+        <h4>Core Skills</h4>
 
-              {!coreFullyMastered && (
-                <div style={{
-                  marginBottom: "15px",
-                  padding: "10px",
-                  background: "#1e2129",
-                  color: "#f59e0b",
-                  borderRadius: "6px"
-                }}>
-                  Master all core skills to unlock extension.
-                </div>
-              )}
-
-              {coreFullyMastered && (
-                <StandardsGrid
-                  studentId={studentId}
-                  customSkills={extensionSkills}
-                  totalCols={15}
-                />
-              )}
-            </>
-          )}
-
-          <h4>Core Skills</h4>
-
-          <StandardsGrid
-            studentId={studentId}
-            customSkills={coreSkills}
-            totalCols={15}
-          />
-        </div>
-      </div>
-
-      <div style={{ width: "300px", padding: "40px" }}>
-        <h3>Mission Control Apps</h3>
-
-        <button
-          onClick={onLaunchUnitBuilder}
-          style={{ marginTop: "20px", padding: "15px" }}
-        >
-          🧩 Unit Builder
-        </button>
+        <StandardsGrid
+          studentId={studentId}
+          customSkills={coreSkills}
+          totalCols={15}
+        />
       </div>
     </div>
   );

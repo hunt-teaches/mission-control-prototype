@@ -1,43 +1,55 @@
 const { useState } = React;
 
 const App = () => {
-  const [mode, setMode] = useState("teacher"); 
+  const [mode, setMode] = useState("teacher");
   const [currentView, setCurrentView] = useState("dashboard");
   const [activeUnitId, setActiveUnitId] = useState(null);
 
   return (
     <>
-      {mode === "teacher" && (
-        <div style={{
-          padding: "10px",
-          background: "#111827",
-          color: "white"
-        }}>
-          <button
-            onClick={() => setMode("student")}
-            style={{ marginRight: "10px" }}
-          >
-            Switch to Student View
-          </button>
+      {/* Top Navigation Bar */}
+      <div style={{
+        padding: "10px",
+        background: "#111827",
+        color: "white",
+        display: "flex",
+        justifyContent: "space-between"
+      }}>
+        <div>
+          {mode === "teacher" && (
+            <button onClick={() => setMode("student")}>
+              Switch to Student View
+            </button>
+          )}
 
-          <button
-            onClick={() => setCurrentView("teacherDashboard")}
-          >
-            Teacher Dashboard
-          </button>
+          {mode === "student" && (
+            <button onClick={() => setMode("teacher")}>
+              Switch to Teacher View
+            </button>
+          )}
         </div>
-      )}
 
-      {mode === "student" && (
-        <div style={{
-          padding: "10px",
-          background: "#0d0f14",
-          color: "white"
-        }}>
-          Student View
+        <div>
+          {mode === "teacher" && (
+            <>
+              <button
+                style={{ marginRight: "10px" }}
+                onClick={() => setCurrentView("teacherDashboard")}
+              >
+                Question Bank
+              </button>
+
+              <button
+                onClick={() => setCurrentView("unitBuilder")}
+              >
+                Unit Builder
+              </button>
+            </>
+          )}
         </div>
-      )}
+      </div>
 
+      {/* Student Dashboard */}
       {currentView === "dashboard" && (
         <Dashboard
           onLaunchGlobalScreener={() => {
@@ -51,6 +63,7 @@ const App = () => {
         />
       )}
 
+      {/* Screener */}
       {currentView === "screener" && (
         <ScreenerApp
           studentId="User123"
@@ -59,8 +72,17 @@ const App = () => {
         />
       )}
 
+      {/* Teacher Question Bank */}
       {currentView === "teacherDashboard" && mode === "teacher" && (
         <TeacherDashboard
+          onBack={() => setCurrentView("dashboard")}
+        />
+      )}
+
+      {/* Unit Builder */}
+      {currentView === "unitBuilder" && mode === "teacher" && (
+        <UnitBuilder
+          teacherId="Teacher1"
           onBack={() => setCurrentView("dashboard")}
         />
       )}

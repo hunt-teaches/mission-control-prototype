@@ -33,7 +33,7 @@ const TeacherDashboard = ({ onBack }) => {
     if (!skill) return false;
 
     return (
-      (filterTier === "" || skill.Tier === filterTier) &&
+      (filterTier === "" || String(skill.Tier) === String(filterTier)) &&
       (filterDomain === "" || skill.Domain === filterDomain) &&
       (filterSkill === "" || skill.ID === filterSkill)
     );
@@ -43,7 +43,7 @@ const TeacherDashboard = ({ onBack }) => {
   const domains = [...new Set(skills.map(s => s.Domain))];
 
   const skillOptions = skills.filter(s =>
-    (filterTier === "" || s.Tier === filterTier) &&
+    (filterTier === "" || String(s.Tier) === String(filterTier)) &&
     (filterDomain === "" || s.Domain === filterDomain)
   );
 
@@ -101,7 +101,6 @@ const TeacherDashboard = ({ onBack }) => {
           {selectedQuestion && (
             <>
               <QuestionPreview question={selectedQuestion} />
-
               <TeacherMeta
                 skill={getSkillMeta(selectedQuestion.skill_id)}
               />
