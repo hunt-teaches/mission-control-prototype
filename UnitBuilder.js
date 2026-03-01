@@ -1,6 +1,10 @@
 const { useState, useEffect } = React;
 
 const UnitBuilder = ({ teacherId, onBack }) => {
+  // =============================
+  // STATE
+  // =============================
+
   const [skills, setSkills] = useState([]);
   const [units, setUnits] = useState([]);
 
@@ -13,12 +17,17 @@ const UnitBuilder = ({ teacherId, onBack }) => {
   const [searchTerm, setSearchTerm] = useState("");
 
   const [editingUnitId, setEditingUnitId] = useState(null);
+
   const [collapsedTiers, setCollapsedTiers] = useState(new Set());
 
   const [skillToRemove, setSkillToRemove] = useState(null);
 
   const [showGlobal, setShowGlobal] = useState(true);
   const [globalIsDefault, setGlobalIsDefault] = useState(false);
+
+  // =============================
+  // LOAD DATA
+  // =============================
 
   useEffect(() => {
     loadSkills();
@@ -53,6 +62,10 @@ const UnitBuilder = ({ teacherId, onBack }) => {
     }
   };
 
+  // =============================
+  // GRAPH CLOSURE
+  // =============================
+
   const buildSkillMap = () => {
     const map = {};
     skills.forEach(skill => {
@@ -83,17 +96,23 @@ const UnitBuilder = ({ teacherId, onBack }) => {
     if (selectedGoals.size === 0) {
       setPreviewSkills([]);
       setCollapsedTiers(new Set());
-    } else {
-      const closure = computeClosure(selectedGoals);
-      setPreviewSkills(closure);
-
-      const tierList = [...new Set(closure.map(s => s.Tier))]
-        .sort((a, b) => parseInt(b.replace("T", "")) - parseInt(a.replace("T", "")));
-
-      const collapsed = new Set(tierList.slice(2));
-      setCollapsedTiers(collapsed);
+      return;
     }
+
+    const closure = computeClosure(selectedGoals);
+    setPreviewSkills(closure);
+
+    const tierList = [...new Set(closure.map(s => s.Tier))]
+      .sort((a, b) => parseInt(b.replace("T", "")) - parseInt(a.replace("T", "")));
+
+    const collapsed = new Set(tierList.slice(2));
+    setCollapsedTiers(collapsed);
+
   }, [selectedGoals, skills]);
+
+  // =============================
+  // GOAL TOGGLE
+  // =============================
 
   const toggleGoal = (skillId) => {
     const newSet = new Set(selectedGoals);
@@ -101,8 +120,13 @@ const UnitBuilder = ({ teacherId, onBack }) => {
     setSelectedGoals(newSet);
   };
 
+  // =============================
+  // REMOVE CONFIRM
+  // =============================
+
   const confirmRemove = () => {
     if (!skillToRemove) return;
+
     const newSet = new Set(selectedGoals);
     newSet.delete(skillToRemove.ID);
     setSelectedGoals(newSet);
@@ -112,6 +136,94 @@ const UnitBuilder = ({ teacherId, onBack }) => {
   const cancelRemove = () => {
     setSkillToRemove(null);
   };
+
+  // =============================
+  // SAVE UNIT
+  // =============================
+
+  const saveUnit = async () => {
+    if (!unitName || selectedGoals.size === 0) return;
+
+    let unitId = editingUnitId;
+
+    if (editingUnitId) {
+      await supabaseClient
+        .from("units")
+        .update({ name: unitName })
+        .eq("id", editingUnitId);
+
+      await supabaseClient
+        .from("unit_goals")
+        .delete()
+        .eq("unit_id", editingUnitId);
+    } else {
+      const { data } = await supabaseClient
+        .from("units")
+        .insert({
+          name: unitName,
+          teacher_id: teacherId,
+          visible_to_students: true,
+          is_default: false
+        })
+        .select()
+        .single();
+
+      unitId = data.id;
+    }
+
+    const goalsToInsert = Array.from(selectedGoals).map(skillId => ({
+      unit_id: unitId,
+      skill_id: skillId
+    }));
+
+    await supabaseClient.from("unit_goals").insert(goalsToInsert);
+
+    alert(editingUnitId ? "Unit updated." : "Unit saved.");
+
+    setEditingUnitId(null);
+    setUnitName("");
+    setSelectedGoals(new Set());
+    setPreviewSkills([]);
+    loadUnits();
+  };
+
+  // =============================
+  // GLOBAL GRID CONTROLS
+  // =============================
+
+  const toggleGlobalVisibility = async () => {
+    await supabaseClient
+      .from("teacher_settings")
+      .upsert({
+        teacher_id: teacherId,
+        show_global_grid: !showGlobal,
+        global_is_default: globalIsDefault
+      });
+
+    setShowGlobal(!showGlobal);
+  };
+
+  const setGlobalDefault = async () => {
+    await supabaseClient
+      .from("units")
+      .update({ is_default: false })
+      .eq("teacher_id", teacherId);
+
+    await supabaseClient
+      .from("teacher_settings")
+      .upsert({
+        teacher_id: teacherId,
+        show_global_grid: showGlobal,
+        global_is_default: true
+      });
+
+    setGlobalIsDefault(true);
+    loadUnits();
+  };
+
+  // =============================
+  // FILTERING
+  // =============================
 
   const filteredSkills = skills.filter(skill =>
     (filterTier === "" || skill.Tier === filterTier) &&
@@ -124,6 +236,10 @@ const UnitBuilder = ({ teacherId, onBack }) => {
 
   const tiers = [...new Set(previewSkills.map(s => s.Tier))]
     .sort((a, b) => parseInt(b.replace("T", "")) - parseInt(a.replace("T", "")));
+
+  // =============================
+  // RENDER
+  // =============================
 
   return (
     <div style={{ padding: "30px" }}>
@@ -160,7 +276,7 @@ const UnitBuilder = ({ teacherId, onBack }) => {
         </select>
       </div>
 
-      {/* CHECKBOX LIST */}
+      {/* CHECKBOX PANEL */}
       <div style={{ maxHeight: "200px", overflowY: "auto", border: "1px solid #ddd", padding: "10px" }}>
         {filteredSkills.map(skill => (
           <div key={skill.ID}>
@@ -174,9 +290,18 @@ const UnitBuilder = ({ teacherId, onBack }) => {
         ))}
       </div>
 
-      <h3 style={{ marginTop: "30px" }}>Preview ({previewSkills.length} skills)</h3>
+      <button onClick={saveUnit} style={{ marginTop: "10px" }}>
+        {editingUnitId ? "Update Unit" : "Save Unit"}
+      </button>
+
+      {/* PREVIEW */}
+      <h3 style={{ marginTop: "30px" }}>
+        Preview ({previewSkills.length} skills)
+      </h3>
 
       <div style={{ display: "flex", gap: "30px", marginTop: "20px" }}>
+
+        {/* GRID */}
         <div style={{ flex: 1 }}>
           <StandardsGrid
             studentId="User123"
@@ -185,6 +310,7 @@ const UnitBuilder = ({ teacherId, onBack }) => {
           />
         </div>
 
+        {/* SKILL LIST */}
         <div style={{ flex: 1, maxHeight: "600px", overflowY: "auto" }}>
           {tiers.map(tier => {
             const skillsInTier = previewSkills
@@ -261,9 +387,6 @@ const UnitBuilder = ({ teacherId, onBack }) => {
       {units.map(unit => (
         <div key={unit.id} style={{ marginBottom: "10px" }}>
           <strong>{unit.name}</strong>
-          <div>
-            <button onClick={() => startEditUnit(unit)}>Edit</button>
-          </div>
         </div>
       ))}
 
@@ -274,7 +397,7 @@ const UnitBuilder = ({ teacherId, onBack }) => {
         {showGlobal ? "Hide Global Grid" : "Show Global Grid"}
       </button>
 
-      <button onClick={() => setGlobalIsDefault(true)} style={{ marginLeft: "10px" }}>
+      <button onClick={setGlobalDefault} style={{ marginLeft: "10px" }}>
         {globalIsDefault ? "Default" : "Set As Default"}
       </button>
 
