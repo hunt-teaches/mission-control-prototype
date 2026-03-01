@@ -15,9 +15,7 @@ const UnitBuilder = ({ teacherId, onBack }) => {
   }, []);
 
   const loadSkills = async () => {
-    const { data } = await supabaseClient
-      .from("skills")
-      .select("*");
+    const { data } = await supabaseClient.from("skills").select("*");
     setSkills(data || []);
   };
 
@@ -29,23 +27,19 @@ const UnitBuilder = ({ teacherId, onBack }) => {
     setUnits(data || []);
   };
 
-  // -----------------------------------------
-  // Recursive prerequisite closure
-  // -----------------------------------------
   const buildSkillMap = () => {
     const map = {};
     skills.forEach(skill => {
       map[skill.ID] = {
         prereqs: skill.Prerequisites
           ? skill.Prerequisites.split(";").map(s => s.trim()).filter(Boolean)
-          : [],
-        tier: skill.Tier
+          : []
       };
     });
     return map;
   };
 
-  const computeClosure = () => {
+  const computeClosure = (goalSet) => {
     const map = buildSkillMap();
     const visited = new Set();
 
@@ -55,7 +49,7 @@ const UnitBuilder = ({ teacherId, onBack }) => {
       map[id]?.prereqs.forEach(p => visit(p));
     };
 
-    selectedGoals.forEach(goal => visit(goal));
+    goalSet.forEach(goal => visit(goal));
 
     return skills.filter(skill => visited.has(skill.ID));
   };
@@ -64,17 +58,13 @@ const UnitBuilder = ({ teacherId, onBack }) => {
     if (selectedGoals.size === 0) {
       setPreviewSkills([]);
     } else {
-      setPreviewSkills(computeClosure());
+      setPreviewSkills(computeClosure(selectedGoals));
     }
   }, [selectedGoals, skills]);
 
   const toggleGoal = (skillId) => {
     const newSet = new Set(selectedGoals);
-    if (newSet.has(skillId)) {
-      newSet.delete(skillId);
-    } else {
-      newSet.add(skillId);
-    }
+    newSet.has(skillId) ? newSet.delete(skillId) : newSet.add(skillId);
     setSelectedGoals(newSet);
   };
 
@@ -85,7 +75,9 @@ const UnitBuilder = ({ teacherId, onBack }) => {
       .from("units")
       .insert({
         name: unitName,
-        teacher_id: teacherId
+        teacher_id: teacherId,
+        visible_to_students: true,
+        is_default: false
       })
       .select()
       .single();
@@ -106,12 +98,33 @@ const UnitBuilder = ({ teacherId, onBack }) => {
     loadUnits();
   };
 
-  const filteredSkills = skills.filter(skill => {
-    return (
-      (filterTier === "" || skill.Tier === filterTier) &&
-      (filterDomain === "" || skill.Domain === filterDomain)
-    );
-  });
+  const toggleVisibility = async (unit) => {
+    await supabaseClient
+      .from("units")
+      .update({ visible_to_students: !unit.visible_to_students })
+      .eq("id", unit.id);
+
+    loadUnits();
+  };
+
+  const setDefaultUnit = async (unitId) => {
+    await supabaseClient
+      .from("units")
+      .update({ is_default: false })
+      .eq("teacher_id", teacherId);
+
+    await supabaseClient
+      .from("units")
+      .update({ is_default: true })
+      .eq("id", unitId);
+
+    loadUnits();
+  };
+
+  const filteredSkills = skills.filter(skill =>
+    (filterTier === "" || skill.Tier === filterTier) &&
+    (filterDomain === "" || skill.Domain === filterDomain)
+  );
 
   const tiers = [...new Set(skills.map(s => s.Tier))];
   const domains = [...new Set(skills.map(s => s.Domain))];
@@ -165,14 +178,24 @@ const UnitBuilder = ({ teacherId, onBack }) => {
 
       <StandardsGrid
         studentId="User123"
-        tableName="skills"
-        totalCols={15}
         customSkills={previewSkills}
+        totalCols={15}
       />
 
       <h3 style={{ marginTop: "30px" }}>Existing Units</h3>
+
       {units.map(unit => (
-        <div key={unit.id}>{unit.name}</div>
+        <div key={unit.id} style={{ marginBottom: "10px" }}>
+          <strong>{unit.name}</strong>
+          <div>
+            <button onClick={() => toggleVisibility(unit)}>
+              {unit.visible_to_students ? "Hide" : "Show"}
+            </button>
+            <button onClick={() => setDefaultUnit(unit.id)} style={{ marginLeft: "10px" }}>
+              {unit.is_default ? "Default" : "Set Default"}
+            </button>
+          </div>
+        </div>
       ))}
     </div>
   );
