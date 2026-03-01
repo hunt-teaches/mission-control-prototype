@@ -14,55 +14,17 @@ const TeacherDashboard = ({ onBack }) => {
   }, []);
 
   const loadData = async () => {
-    console.log("=== LOADING DATA ===");
-
-    const { data: skillsData, error: skillsError } =
+    const { data: skillsData } =
       await supabaseClient
         .from("skills")
         .select("*")
         .range(0, 10000);
 
-    const { data: questionData, error: questionError } =
+    const { data: questionData } =
       await supabaseClient
         .from("questions")
         .select("*")
         .range(0, 10000);
-
-    if (skillsError) console.log("Skills error:", skillsError);
-    if (questionError) console.log("Questions error:", questionError);
-
-    console.log("Skills returned:", skillsData?.length);
-    console.log("Questions returned:", questionData?.length);
-
-    // Build quick skill lookup
-    const skillMap = {};
-    skillsData.forEach(s => {
-      skillMap[s.ID] = s;
-    });
-
-    // Count questions by tier
-    const tierCounts = {};
-    questionData.forEach(q => {
-      const skill = skillMap[q.skill_id];
-      if (skill) {
-        tierCounts[skill.Tier] =
-          (tierCounts[skill.Tier] || 0) + 1;
-      } else {
-        console.log("Unmatched skill_id:", q.skill_id);
-      }
-    });
-
-    console.log("Question count by Tier:", tierCounts);
-
-    // Specifically log T3+
-    const highTierQuestions = questionData.filter(q => {
-      const skill = skillMap[q.skill_id];
-      if (!skill) return false;
-      const tierNumber = parseInt(skill.Tier.replace("T", ""));
-      return tierNumber >= 3;
-    });
-
-    console.log("T3+ questions found:", highTierQuestions.length);
 
     setSkills(skillsData || []);
     setQuestions(questionData || []);
@@ -72,6 +34,7 @@ const TeacherDashboard = ({ onBack }) => {
     return skills.find(s => s.ID === skillId);
   };
 
+  // Sort questions by Tier → then by question_id
   const sortedQuestions = [...questions].sort((a, b) => {
     const skillA = getSkillMeta(a.skill_id);
     const skillB = getSkillMeta(b.skill_id);
@@ -97,8 +60,6 @@ const TeacherDashboard = ({ onBack }) => {
     );
   });
 
-  console.log("Filtered questions currently visible:", filteredQuestions.length);
-
   const tiers = [...new Set(skills.map(s => s.Tier))].sort();
   const domains = [...new Set(skills.map(s => s.Domain))];
 
@@ -111,7 +72,7 @@ const TeacherDashboard = ({ onBack }) => {
     <div style={{ padding: "30px" }}>
       <button onClick={onBack}>← Back to Student View</button>
 
-      <h2>Question Bank (DEBUG MODE)</h2>
+      <h2>Question Bank</h2>
 
       <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
         <select value={filterTier} onChange={e => setFilterTier(e.target.value)}>
@@ -136,29 +97,111 @@ const TeacherDashboard = ({ onBack }) => {
         </select>
       </div>
 
-      <div style={{
-        maxHeight: "500px",
-        overflowY: "auto",
-        border: "1px solid #ccc",
-        padding: "10px"
-      }}>
-        {filteredQuestions.map(q => {
-          const skill = getSkillMeta(q.skill_id);
-          return (
-            <div
-              key={q.question_id}
-              onClick={() => setSelectedQuestion(q)}
-              style={{
-                padding: "6px",
-                cursor: "pointer",
-                borderBottom: "1px solid #eee"
-              }}
-            >
-              {skill?.Tier} — {q.question_id}
-            </div>
-          );
-        })}
+      <div style={{ display: "flex" }}>
+        <div style={{
+          width: "350px",
+          borderRight: "1px solid #ddd",
+          paddingRight: "10px",
+          maxHeight: "500px",
+          overflowY: "auto"
+        }}>
+          {filteredQuestions.map(q => {
+            const skill = getSkillMeta(q.skill_id);
+            return (
+              <div
+                key={q.question_id}
+                onClick={() => setSelectedQuestion(q)}
+                style={{
+                  padding: "6px",
+                  cursor: "pointer",
+                  borderBottom: "1px solid #eee"
+                }}
+              >
+                {skill?.Tier} — {q.question_id}
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ flex: 1, padding: "20px" }}>
+          {selectedQuestion && (
+            <>
+              <QuestionPreview question={selectedQuestion} />
+              <TeacherMeta
+                question={selectedQuestion}
+                skill={getSkillMeta(selectedQuestion.skill_id)}
+              />
+            </>
+          )}
+        </div>
       </div>
+    </div>
+  );
+};
+
+const QuestionPreview = ({ question }) => {
+  const prompt = JSON.parse(question.prompt_template);
+
+  return (
+    <div>
+      <h3>Student View</h3>
+
+      <div style={{ margin: "20px 0" }}>
+        {prompt.stem}
+      </div>
+
+      {prompt.type === "multiple_choice" &&
+        prompt.choices.map(choice => (
+          <div key={choice.id}
+            style={{
+              padding: "8px",
+              border: "1px solid #ddd",
+              marginBottom: "5px"
+            }}>
+            {choice.text}
+          </div>
+        ))}
+
+      {prompt.type === "numeric" && (
+        <input type="number" disabled />
+      )}
+    </div>
+  );
+};
+
+const TeacherMeta = ({ question, skill }) => {
+  if (!skill) return null;
+
+  const answerData = JSON.parse(question.answer_template);
+
+  let correctAnswerDisplay = "";
+
+  if (question.question_type === "numeric") {
+    correctAnswerDisplay = answerData.value;
+  } else {
+    const prompt = JSON.parse(question.prompt_template);
+    const correctChoice = prompt.choices.find(
+      c => c.id === answerData.correct_choice_id
+    );
+    correctAnswerDisplay = correctChoice
+      ? correctChoice.text
+      : "Unknown";
+  }
+
+  return (
+    <div style={{
+      marginTop: "30px",
+      padding: "15px",
+      background: "#f3f4f6",
+      borderRadius: "6px"
+    }}>
+      <h4>Teacher Metadata</h4>
+
+      <div><strong>Tier:</strong> {skill.Tier}</div>
+      <div><strong>Skill ID:</strong> {skill.ID}</div>
+      <div><strong>Skill Name:</strong> {skill["Skill Name"]}</div>
+      <div><strong>The Goal:</strong> {skill["The Goal"]}</div>
+      <div><strong>Correct Answer:</strong> {correctAnswerDisplay}</div>
     </div>
   );
 };
