@@ -13,6 +13,8 @@ const UnitBuilder = ({ teacherId, onBack }) => {
 
   const [editingUnitId, setEditingUnitId] = useState(null);
 
+  const [collapsedTiers, setCollapsedTiers] = useState(new Set());
+
   useEffect(() => {
     loadSkills();
     loadUnits();
@@ -99,7 +101,6 @@ const UnitBuilder = ({ teacherId, onBack }) => {
         .from("unit_goals")
         .delete()
         .eq("unit_id", editingUnitId);
-
     } else {
       const { data } = await supabaseClient
         .from("units")
@@ -129,6 +130,12 @@ const UnitBuilder = ({ teacherId, onBack }) => {
     setSelectedGoals(new Set());
     setPreviewSkills([]);
     loadUnits();
+  };
+
+  const toggleTierCollapse = (tier) => {
+    const newSet = new Set(collapsedTiers);
+    newSet.has(tier) ? newSet.delete(tier) : newSet.add(tier);
+    setCollapsedTiers(newSet);
   };
 
   const tiers = [...new Set(previewSkills.map(s => s.Tier))]
@@ -185,7 +192,6 @@ const UnitBuilder = ({ teacherId, onBack }) => {
         {editingUnitId ? "Update Unit" : "Save Unit"}
       </button>
 
-      {/* SPLIT SCREEN PREVIEW */}
       <h3 style={{ marginTop: "30px" }}>Preview ({previewSkills.length} skills)</h3>
 
       <div style={{ display: "flex", gap: "30px", marginTop: "20px" }}>
@@ -211,15 +217,31 @@ const UnitBuilder = ({ teacherId, onBack }) => {
                 return a["Skill Name"].localeCompare(b["Skill Name"]);
               });
 
+            const totalCount = skillsInTier.length;
+            const goalCount = skillsInTier.filter(s => selectedGoals.has(s.ID)).length;
+            const isCollapsed = collapsedTiers.has(tier);
+
             return (
               <div key={tier} style={{ marginBottom: "20px" }}>
-                <h4>{`Tier ${tier.replace("T", "")}`}</h4>
-                {skillsInTier.map(skill => (
-                  <div key={skill.ID} style={{ marginBottom: "4px" }}>
-                    {selectedGoals.has(skill.ID) && "🎯 "}
-                    {skill["Skill Name"]}
-                  </div>
-                ))}
+                <h4
+                  style={{ cursor: "pointer" }}
+                  onClick={() => toggleTierCollapse(tier)}
+                >
+                  {isCollapsed ? "▶" : "▼"} Tier {tier.replace("T", "")} 
+                  {" "}({totalCount} skills • {goalCount} goals)
+                </h4>
+
+                {!isCollapsed &&
+                  skillsInTier.map(skill => (
+                    <div key={skill.ID} style={{ marginBottom: "4px" }}>
+                      {selectedGoals.has(skill.ID) && "🎯 "}
+                      <span style={{
+                        fontWeight: selectedGoals.has(skill.ID) ? "bold" : "normal"
+                      }}>
+                        {skill["Skill Name"]}
+                      </span>
+                    </div>
+                  ))}
               </div>
             );
           })}
