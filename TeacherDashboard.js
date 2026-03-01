@@ -28,24 +28,45 @@ const TeacherDashboard = ({ onBack }) => {
     return skills.find(s => s.ID === skillId);
   };
 
+  // Normalize tier like "T3" → 3
+  const normalizeTier = (tierValue) => {
+    if (!tierValue) return null;
+    if (typeof tierValue === "number") return tierValue;
+    return parseInt(String(tierValue).replace("T", ""));
+  };
+
   const filteredQuestions = questions.filter(q => {
     const skill = getSkillMeta(q.skill_id);
     if (!skill) return false;
 
+    const skillTierNumber = normalizeTier(skill.Tier);
+    const filterTierNumber = normalizeTier(filterTier);
+
     return (
-      (filterTier === "" || String(skill.Tier) === String(filterTier)) &&
+      (filterTier === "" || skillTierNumber === filterTierNumber) &&
       (filterDomain === "" || skill.Domain === filterDomain) &&
       (filterSkill === "" || skill.ID === filterSkill)
     );
   });
 
-  const tiers = [...new Set(skills.map(s => s.Tier))];
+  // Unique tier numbers (sorted numerically)
+  const tiers = [
+    ...new Set(
+      skills.map(s => normalizeTier(s.Tier))
+    )
+  ].sort((a, b) => a - b);
+
   const domains = [...new Set(skills.map(s => s.Domain))];
 
-  const skillOptions = skills.filter(s =>
-    (filterTier === "" || String(s.Tier) === String(filterTier)) &&
-    (filterDomain === "" || s.Domain === filterDomain)
-  );
+  const skillOptions = skills.filter(s => {
+    const skillTierNumber = normalizeTier(s.Tier);
+    const filterTierNumber = normalizeTier(filterTier);
+
+    return (
+      (filterTier === "" || skillTierNumber === filterTierNumber) &&
+      (filterDomain === "" || s.Domain === filterDomain)
+    );
+  });
 
   return (
     <div style={{ padding: "30px" }}>
@@ -56,7 +77,11 @@ const TeacherDashboard = ({ onBack }) => {
       <div style={{ display: "flex", gap: "10px", marginBottom: "20px" }}>
         <select value={filterTier} onChange={e => setFilterTier(e.target.value)}>
           <option value="">All Tiers</option>
-          {tiers.map(t => <option key={t}>{t}</option>)}
+          {tiers.map(t => (
+            <option key={t} value={t}>
+              T{t}
+            </option>
+          ))}
         </select>
 
         <select value={filterDomain} onChange={e => setFilterDomain(e.target.value)}>
@@ -102,6 +127,7 @@ const TeacherDashboard = ({ onBack }) => {
             <>
               <QuestionPreview question={selectedQuestion} />
               <TeacherMeta
+                question={selectedQuestion}
                 skill={getSkillMeta(selectedQuestion.skill_id)}
               />
             </>
@@ -148,8 +174,24 @@ const QuestionPreview = ({ question }) => {
   );
 };
 
-const TeacherMeta = ({ skill }) => {
+const TeacherMeta = ({ question, skill }) => {
   if (!skill) return null;
+
+  const answerData = JSON.parse(question.answer_template);
+
+  let correctAnswerDisplay = "";
+
+  if (question.question_type === "numeric") {
+    correctAnswerDisplay = answerData.value;
+  } else {
+    const prompt = JSON.parse(question.prompt_template);
+    const correctChoice = prompt.choices.find(
+      c => c.id === answerData.correct_choice_id
+    );
+    correctAnswerDisplay = correctChoice
+      ? correctChoice.text
+      : "Unknown";
+  }
 
   return (
     <div style={{
@@ -159,10 +201,12 @@ const TeacherMeta = ({ skill }) => {
       borderRadius: "6px"
     }}>
       <h4>Teacher Metadata</h4>
+
       <div><strong>Tier:</strong> {skill.Tier}</div>
       <div><strong>Skill ID:</strong> {skill.ID}</div>
       <div><strong>Skill Name:</strong> {skill["Skill Name"]}</div>
       <div><strong>Skill Goal:</strong> {skill["Skill Goal"]}</div>
+      <div><strong>Correct Answer:</strong> {correctAnswerDisplay}</div>
     </div>
   );
 };
