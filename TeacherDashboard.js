@@ -69,7 +69,7 @@ const TeacherDashboard = ({ onBack }) => {
 
   return (
     <div style={{ padding: "30px" }}>
-      <button onClick={onBack}>← Back to Teacher Dashboard</button>
+      <button onClick={onBack}>← Back</button>
 
       <h2>Question Bank</h2>
 
