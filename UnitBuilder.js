@@ -15,9 +15,13 @@ const UnitBuilder = ({ teacherId, onBack }) => {
 
   const [collapsedTiers, setCollapsedTiers] = useState(new Set());
 
+  const [showGlobal, setShowGlobal] = useState(true);
+  const [globalIsDefault, setGlobalIsDefault] = useState(false);
+
   useEffect(() => {
     loadSkills();
     loadUnits();
+    loadGlobalSettings();
   }, []);
 
   const loadSkills = async () => {
@@ -32,6 +36,19 @@ const UnitBuilder = ({ teacherId, onBack }) => {
       .eq("teacher_id", teacherId);
 
     setUnits(data || []);
+  };
+
+  const loadGlobalSettings = async () => {
+    const { data } = await supabaseClient
+      .from("teacher_settings")
+      .select("*")
+      .eq("teacher_id", teacherId)
+      .single();
+
+    if (data) {
+      setShowGlobal(data.show_global_grid);
+      setGlobalIsDefault(data.global_is_default);
+    }
   };
 
   const buildSkillMap = () => {
@@ -63,14 +80,29 @@ const UnitBuilder = ({ teacherId, onBack }) => {
   useEffect(() => {
     if (selectedGoals.size === 0) {
       setPreviewSkills([]);
+      setCollapsedTiers(new Set());
     } else {
-      setPreviewSkills(computeClosure(selectedGoals));
+      const closure = computeClosure(selectedGoals);
+      setPreviewSkills(closure);
+
+      // Determine default expanded tiers (top 2 highest)
+      const tierList = [...new Set(closure.map(s => s.Tier))]
+        .sort((a, b) => parseInt(b.replace("T", "")) - parseInt(a.replace("T", "")));
+
+      const collapsed = new Set(tierList.slice(2));
+      setCollapsedTiers(collapsed);
     }
   }, [selectedGoals, skills]);
 
   const toggleGoal = (skillId) => {
     const newSet = new Set(selectedGoals);
     newSet.has(skillId) ? newSet.delete(skillId) : newSet.add(skillId);
+    setSelectedGoals(newSet);
+  };
+
+  const removeGoal = (skillId) => {
+    const newSet = new Set(selectedGoals);
+    newSet.delete(skillId);
     setSelectedGoals(newSet);
   };
 
@@ -132,22 +164,70 @@ const UnitBuilder = ({ teacherId, onBack }) => {
     loadUnits();
   };
 
-  const toggleTierCollapse = (tier) => {
-    const newSet = new Set(collapsedTiers);
-    newSet.has(tier) ? newSet.delete(tier) : newSet.add(tier);
-    setCollapsedTiers(newSet);
+  const toggleVisibility = async (unit) => {
+    await supabaseClient
+      .from("units")
+      .update({ visible_to_students: !unit.visible_to_students })
+      .eq("id", unit.id);
+
+    loadUnits();
+  };
+
+  const setDefaultUnit = async (unitId) => {
+    await supabaseClient
+      .from("units")
+      .update({ is_default: false })
+      .eq("teacher_id", teacherId);
+
+    await supabaseClient
+      .from("units")
+      .update({ is_default: true })
+      .eq("id", unitId);
+
+    await supabaseClient
+      .from("teacher_settings")
+      .upsert({
+        teacher_id: teacherId,
+        show_global_grid: showGlobal,
+        global_is_default: false
+      });
+
+    loadUnits();
+    setGlobalIsDefault(false);
+  };
+
+  const toggleGlobalVisibility = async () => {
+    await supabaseClient
+      .from("teacher_settings")
+      .upsert({
+        teacher_id: teacherId,
+        show_global_grid: !showGlobal,
+        global_is_default: globalIsDefault
+      });
+
+    setShowGlobal(!showGlobal);
+  };
+
+  const setGlobalDefault = async () => {
+    await supabaseClient
+      .from("units")
+      .update({ is_default: false })
+      .eq("teacher_id", teacherId);
+
+    await supabaseClient
+      .from("teacher_settings")
+      .upsert({
+        teacher_id: teacherId,
+        show_global_grid: showGlobal,
+        global_is_default: true
+      });
+
+    setGlobalIsDefault(true);
+    loadUnits();
   };
 
   const tiers = [...new Set(previewSkills.map(s => s.Tier))]
     .sort((a, b) => parseInt(b.replace("T", "")) - parseInt(a.replace("T", "")));
-
-  const filteredSkills = skills.filter(skill =>
-    (filterTier === "" || skill.Tier === filterTier) &&
-    (filterDomain === "" || skill.Domain === filterDomain)
-  );
-
-  const allTiers = [...new Set(skills.map(s => s.Tier))];
-  const domains = [...new Set(skills.map(s => s.Domain))];
 
   return (
     <div style={{ padding: "30px" }}>
@@ -163,40 +243,13 @@ const UnitBuilder = ({ teacherId, onBack }) => {
         style={{ padding: "8px", marginBottom: "15px", width: "300px" }}
       />
 
-      <div style={{ display: "flex", gap: "10px", marginBottom: "10px" }}>
-        <select value={filterTier} onChange={e => setFilterTier(e.target.value)}>
-          <option value="">All Tiers</option>
-          {allTiers.map(t => <option key={t}>{t}</option>)}
-        </select>
-
-        <select value={filterDomain} onChange={e => setFilterDomain(e.target.value)}>
-          <option value="">All Domains</option>
-          {domains.map(d => <option key={d}>{d}</option>)}
-        </select>
-      </div>
-
-      <div style={{ maxHeight: "200px", overflowY: "auto", border: "1px solid #ddd", padding: "10px" }}>
-        {filteredSkills.map(skill => (
-          <div key={skill.ID}>
-            <input
-              type="checkbox"
-              checked={selectedGoals.has(skill.ID)}
-              onChange={() => toggleGoal(skill.ID)}
-            />
-            {skill["Skill Name"]}
-          </div>
-        ))}
-      </div>
-
-      <button onClick={saveUnit} style={{ marginTop: "10px" }}>
+      <button onClick={saveUnit}>
         {editingUnitId ? "Update Unit" : "Save Unit"}
       </button>
 
       <h3 style={{ marginTop: "30px" }}>Preview ({previewSkills.length} skills)</h3>
 
       <div style={{ display: "flex", gap: "30px", marginTop: "20px" }}>
-
-        {/* LEFT SIDE — GRID */}
         <div style={{ flex: 1 }}>
           <StandardsGrid
             studentId="User123"
@@ -205,7 +258,6 @@ const UnitBuilder = ({ teacherId, onBack }) => {
           />
         </div>
 
-        {/* RIGHT SIDE — SKILL LIST */}
         <div style={{ flex: 1, maxHeight: "600px", overflowY: "auto" }}>
           {tiers.map(tier => {
             const skillsInTier = previewSkills
@@ -218,28 +270,53 @@ const UnitBuilder = ({ teacherId, onBack }) => {
               });
 
             const totalCount = skillsInTier.length;
-            const goalCount = skillsInTier.filter(s => selectedGoals.has(s.ID)).length;
             const isCollapsed = collapsedTiers.has(tier);
 
             return (
               <div key={tier} style={{ marginBottom: "20px" }}>
                 <h4
                   style={{ cursor: "pointer" }}
-                  onClick={() => toggleTierCollapse(tier)}
+                  onClick={() => {
+                    const newSet = new Set(collapsedTiers);
+                    newSet.has(tier) ? newSet.delete(tier) : newSet.add(tier);
+                    setCollapsedTiers(newSet);
+                  }}
                 >
-                  {isCollapsed ? "▶" : "▼"} Tier {tier.replace("T", "")} 
-                  {" "}({totalCount} skills • {goalCount} goals)
+                  {isCollapsed ? "▶" : "▼"} Tier {tier.replace("T", "")} ({totalCount} skills)
                 </h4>
 
                 {!isCollapsed &&
                   skillsInTier.map(skill => (
-                    <div key={skill.ID} style={{ marginBottom: "4px" }}>
-                      {selectedGoals.has(skill.ID) && "🎯 "}
-                      <span style={{
-                        fontWeight: selectedGoals.has(skill.ID) ? "bold" : "normal"
-                      }}>
-                        {skill["Skill Name"]}
-                      </span>
+                    <div
+                      key={skill.ID}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginBottom: "4px"
+                      }}
+                    >
+                      <div>
+                        {selectedGoals.has(skill.ID) && "🎯 "}
+                        <span style={{
+                          fontWeight: selectedGoals.has(skill.ID) ? "bold" : "normal"
+                        }}>
+                          {skill["Skill Name"]}
+                        </span>
+                      </div>
+
+                      {selectedGoals.has(skill.ID) && (
+                        <button
+                          onClick={() => removeGoal(skill.ID)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "red",
+                            cursor: "pointer"
+                          }}
+                        >
+                          remove
+                        </button>
+                      )}
                     </div>
                   ))}
               </div>
@@ -255,9 +332,25 @@ const UnitBuilder = ({ teacherId, onBack }) => {
           <strong>{unit.name}</strong>
           <div>
             <button onClick={() => startEditUnit(unit)}>Edit</button>
+            <button onClick={() => toggleVisibility(unit)} style={{ marginLeft: "10px" }}>
+              {unit.visible_to_students ? "Hide" : "Show"}
+            </button>
+            <button onClick={() => setDefaultUnit(unit.id)} style={{ marginLeft: "10px" }}>
+              {unit.is_default ? "Default" : "Set Default"}
+            </button>
           </div>
         </div>
       ))}
+
+      <h3 style={{ marginTop: "40px" }}>Global Grid</h3>
+
+      <button onClick={toggleGlobalVisibility}>
+        {showGlobal ? "Hide Global Grid" : "Show Global Grid"}
+      </button>
+
+      <button onClick={setGlobalDefault} style={{ marginLeft: "10px" }}>
+        {globalIsDefault ? "Default" : "Set As Default"}
+      </button>
     </div>
   );
 };
