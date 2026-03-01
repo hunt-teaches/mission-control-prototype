@@ -1,4 +1,4 @@
-const { useState, useEffect } = React;
+const { useState, useEffect } = React; 
 
 const UnitBuilder = ({ teacherId, onBack }) => {
   // =============================
@@ -138,6 +138,22 @@ const UnitBuilder = ({ teacherId, onBack }) => {
   };
 
   // =============================
+  // EDIT UNIT
+  // =============================
+
+  const startEditUnit = async (unit) => {
+    setEditingUnitId(unit.id);
+    setUnitName(unit.name);
+
+    const { data } = await supabaseClient
+      .from("unit_goals")
+      .select("skill_id")
+      .eq("unit_id", unit.id);
+
+    setSelectedGoals(new Set(data.map(d => d.skill_id)));
+  };
+
+  // =============================
   // SAVE UNIT
   // =============================
 
@@ -185,6 +201,45 @@ const UnitBuilder = ({ teacherId, onBack }) => {
     setSelectedGoals(new Set());
     setPreviewSkills([]);
     loadUnits();
+  };
+
+  // =============================
+  // UNIT VISIBILITY + DEFAULT
+  // =============================
+
+  const toggleVisibility = async (unit) => {
+    await supabaseClient
+      .from("units")
+      .update({ visible_to_students: !unit.visible_to_students })
+      .eq("id", unit.id);
+
+    loadUnits();
+  };
+
+  const setDefaultUnit = async (unitId) => {
+    // Remove global default
+    await supabaseClient
+      .from("teacher_settings")
+      .upsert({
+        teacher_id: teacherId,
+        show_global_grid: showGlobal,
+        global_is_default: false
+      });
+
+    // Remove default from all units
+    await supabaseClient
+      .from("units")
+      .update({ is_default: false })
+      .eq("teacher_id", teacherId);
+
+    // Set this unit as default
+    await supabaseClient
+      .from("units")
+      .update({ is_default: true })
+      .eq("id", unitId);
+
+    loadUnits();
+    setGlobalIsDefault(false);
   };
 
   // =============================
@@ -387,6 +442,15 @@ const UnitBuilder = ({ teacherId, onBack }) => {
       {units.map(unit => (
         <div key={unit.id} style={{ marginBottom: "10px" }}>
           <strong>{unit.name}</strong>
+          <div>
+            <button onClick={() => startEditUnit(unit)}>Edit</button>
+            <button onClick={() => toggleVisibility(unit)} style={{ marginLeft: "10px" }}>
+              {unit.visible_to_students ? "Hide" : "Show"}
+            </button>
+            <button onClick={() => setDefaultUnit(unit.id)} style={{ marginLeft: "10px" }}>
+              {unit.is_default ? "Default" : "Set Default"}
+            </button>
+          </div>
         </div>
       ))}
 
