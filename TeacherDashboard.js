@@ -28,8 +28,22 @@ const TeacherDashboard = ({ onBack }) => {
     return skills.find(s => s.ID === skillId);
   };
 
-  // -------- FILTER LOGIC --------
-  const filteredQuestions = questions.filter(q => {
+  // ----- SORT QUESTIONS BY TIER FIRST -----
+  const sortedQuestions = [...questions].sort((a, b) => {
+    const skillA = getSkillMeta(a.skill_id);
+    const skillB = getSkillMeta(b.skill_id);
+
+    if (!skillA || !skillB) return 0;
+
+    const tierA = parseInt(skillA.Tier.replace("T", ""));
+    const tierB = parseInt(skillB.Tier.replace("T", ""));
+
+    if (tierA !== tierB) return tierA - tierB;
+
+    return a.question_id.localeCompare(b.question_id);
+  });
+
+  const filteredQuestions = sortedQuestions.filter(q => {
     const skill = getSkillMeta(q.skill_id);
     if (!skill) return false;
 
@@ -40,9 +54,7 @@ const TeacherDashboard = ({ onBack }) => {
     );
   });
 
-  // Unique tiers (T0–T6)
   const tiers = [...new Set(skills.map(s => s.Tier))].sort();
-
   const domains = [...new Set(skills.map(s => s.Domain))];
 
   const skillOptions = skills.filter(s =>
@@ -60,9 +72,7 @@ const TeacherDashboard = ({ onBack }) => {
         <select value={filterTier} onChange={e => setFilterTier(e.target.value)}>
           <option value="">All Tiers</option>
           {tiers.map(t => (
-            <option key={t} value={t}>
-              {t}
-            </option>
+            <option key={t} value={t}>{t}</option>
           ))}
         </select>
 
@@ -83,25 +93,28 @@ const TeacherDashboard = ({ onBack }) => {
 
       <div style={{ display: "flex" }}>
         <div style={{
-          width: "300px",
+          width: "350px",
           borderRight: "1px solid #ddd",
           paddingRight: "10px",
           maxHeight: "500px",
           overflowY: "auto"
         }}>
-          {filteredQuestions.map(q => (
-            <div
-              key={q.question_id}
-              onClick={() => setSelectedQuestion(q)}
-              style={{
-                padding: "8px",
-                cursor: "pointer",
-                borderBottom: "1px solid #eee"
-              }}
-            >
-              {q.question_id}
-            </div>
-          ))}
+          {filteredQuestions.map(q => {
+            const skill = getSkillMeta(q.skill_id);
+            return (
+              <div
+                key={q.question_id}
+                onClick={() => setSelectedQuestion(q)}
+                style={{
+                  padding: "6px",
+                  cursor: "pointer",
+                  borderBottom: "1px solid #eee"
+                }}
+              >
+                {skill?.Tier} — {q.question_id}
+              </div>
+            );
+          })}
         </div>
 
         <div style={{ flex: 1, padding: "20px" }}>
@@ -133,24 +146,18 @@ const QuestionPreview = ({ question }) => {
 
       {prompt.type === "multiple_choice" &&
         prompt.choices.map(choice => (
-          <div
-            key={choice.id}
+          <div key={choice.id}
             style={{
               padding: "8px",
               border: "1px solid #ddd",
               marginBottom: "5px"
-            }}
-          >
+            }}>
             {choice.text}
           </div>
         ))}
 
       {prompt.type === "numeric" && (
-        <input
-          type="number"
-          disabled
-          placeholder="Student types answer here"
-        />
+        <input type="number" disabled />
       )}
     </div>
   );
