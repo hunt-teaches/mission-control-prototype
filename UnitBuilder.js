@@ -439,7 +439,7 @@ const UnitBuilder = ({ teacherId, onBack }) => {
       {/* EXISTING UNITS */}
       <h3 style={{ marginTop: "40px" }}>Existing Units</h3>
 
-      {units.map(unit => (
+      {[...units].sort((a, b) => a.name.localeCompare(b.name)).map(unit => (
         <div key={unit.id} style={{ marginBottom: "10px" }}>
           <strong>{unit.name}</strong>
           <div>
