@@ -28,45 +28,27 @@ const TeacherDashboard = ({ onBack }) => {
     return skills.find(s => s.ID === skillId);
   };
 
-  // Normalize tier like "T3" → 3
-  const normalizeTier = (tierValue) => {
-    if (!tierValue) return null;
-    if (typeof tierValue === "number") return tierValue;
-    return parseInt(String(tierValue).replace("T", ""));
-  };
-
+  // -------- FILTER LOGIC --------
   const filteredQuestions = questions.filter(q => {
     const skill = getSkillMeta(q.skill_id);
     if (!skill) return false;
 
-    const skillTierNumber = normalizeTier(skill.Tier);
-    const filterTierNumber = normalizeTier(filterTier);
-
     return (
-      (filterTier === "" || skillTierNumber === filterTierNumber) &&
+      (filterTier === "" || skill.Tier === filterTier) &&
       (filterDomain === "" || skill.Domain === filterDomain) &&
       (filterSkill === "" || skill.ID === filterSkill)
     );
   });
 
-  // Unique tier numbers (sorted numerically)
-  const tiers = [
-    ...new Set(
-      skills.map(s => normalizeTier(s.Tier))
-    )
-  ].sort((a, b) => a - b);
+  // Unique tiers (T0–T6)
+  const tiers = [...new Set(skills.map(s => s.Tier))].sort();
 
   const domains = [...new Set(skills.map(s => s.Domain))];
 
-  const skillOptions = skills.filter(s => {
-    const skillTierNumber = normalizeTier(s.Tier);
-    const filterTierNumber = normalizeTier(filterTier);
-
-    return (
-      (filterTier === "" || skillTierNumber === filterTierNumber) &&
-      (filterDomain === "" || s.Domain === filterDomain)
-    );
-  });
+  const skillOptions = skills.filter(s =>
+    (filterTier === "" || s.Tier === filterTier) &&
+    (filterDomain === "" || s.Domain === filterDomain)
+  );
 
   return (
     <div style={{ padding: "30px" }}>
@@ -79,7 +61,7 @@ const TeacherDashboard = ({ onBack }) => {
           <option value="">All Tiers</option>
           {tiers.map(t => (
             <option key={t} value={t}>
-              T{t}
+              {t}
             </option>
           ))}
         </select>
@@ -205,7 +187,7 @@ const TeacherMeta = ({ question, skill }) => {
       <div><strong>Tier:</strong> {skill.Tier}</div>
       <div><strong>Skill ID:</strong> {skill.ID}</div>
       <div><strong>Skill Name:</strong> {skill["Skill Name"]}</div>
-      <div><strong>Skill Goal:</strong> {skill["Skill Goal"]}</div>
+      <div><strong>The Goal:</strong> {skill["The Goal"]}</div>
       <div><strong>Correct Answer:</strong> {correctAnswerDisplay}</div>
     </div>
   );
