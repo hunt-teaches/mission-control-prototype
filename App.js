@@ -2,12 +2,20 @@ const { useState } = React;
 
 const App = () => {
   const [currentView, setCurrentView] = useState("dashboard");
+  const [activeUnitId, setActiveUnitId] = useState(null);
 
   return (
     <>
       {currentView === "dashboard" && (
         <Dashboard
-          onLaunchScreener={() => setCurrentView("screener")}
+          onLaunchGlobalScreener={() => {
+            setActiveUnitId(null);
+            setCurrentView("screener");
+          }}
+          onLaunchUnitScreener={(unitId) => {
+            setActiveUnitId(unitId);
+            setCurrentView("screener");
+          }}
           onLaunchUnitBuilder={() => setCurrentView("unitBuilder")}
         />
       )}
@@ -15,6 +23,7 @@ const App = () => {
       {currentView === "screener" && (
         <ScreenerApp
           studentId="User123"
+          unitId={activeUnitId}
           onFinish={() => setCurrentView("dashboard")}
         />
       )}

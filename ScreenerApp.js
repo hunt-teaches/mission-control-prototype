@@ -1,6 +1,6 @@
 const { useState, useEffect } = React;
 
-const ScreenerApp = ({ studentId, onFinish }) => {
+const ScreenerApp = ({ studentId, unitId = null, onFinish }) => {
   const TOTAL_QUESTIONS = 30;
 
   const [currentTier, setCurrentTier] = useState(3);
@@ -11,8 +11,9 @@ const ScreenerApp = ({ studentId, onFinish }) => {
   const [feedback, setFeedback] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // In-memory skill graph
   const [skillMap, setSkillMap] = useState({});
+  const [allowedSkillIds, setAllowedSkillIds] = useState(null);
+
   const masteredSkills = new Set();
   const notMasteredSkills = new Set();
 
@@ -20,25 +21,16 @@ const ScreenerApp = ({ studentId, onFinish }) => {
     initializeScreener();
   }, []);
 
-  // -----------------------------
-  // INITIALIZE: load all skills once
-  // -----------------------------
   const initializeScreener = async () => {
     setLoading(true);
 
-    const { data, error } = await supabaseClient
+    const { data: skillsData } = await supabaseClient
       .from("skills")
       .select("*");
 
-    if (error) {
-      console.error(error);
-      return;
-    }
-
-    // Build skill map in memory
     const map = {};
 
-    data.forEach(skill => {
+    skillsData.forEach(skill => {
       map[skill.ID] = {
         prereqs: skill.Prerequisites
           ? skill.Prerequisites.split(";")
@@ -51,14 +43,30 @@ const ScreenerApp = ({ studentId, onFinish }) => {
 
     setSkillMap(map);
 
-    await loadNextQuestion(3, map);
+    if (unitId) {
+      const { data: goals } = await supabaseClient
+        .from("unit_goals")
+        .select("*")
+        .eq("unit_id", unitId);
+
+      const goalIds = goals.map(g => g.skill_id);
+
+      const visited = new Set();
+
+      const visit = (id) => {
+        if (visited.has(id)) return;
+        visited.add(id);
+        map[id]?.prereqs.forEach(p => visit(p));
+      };
+
+      goalIds.forEach(goal => visit(goal));
+
+      setAllowedSkillIds(visited);
+    }
 
     setLoading(false);
   };
 
-  // -----------------------------
-  // Recursive prerequisite closure (client-side)
-  // -----------------------------
   const markFullTree = (skillId, visited = new Set()) => {
     if (visited.has(skillId)) return;
     visited.add(skillId);
@@ -72,26 +80,22 @@ const ScreenerApp = ({ studentId, onFinish }) => {
     });
   };
 
-  // -----------------------------
-  // Get skills for tier (from memory)
-  // -----------------------------
   const getSkillsForTier = (tierNumber) => {
     const tierLabel = `T${tierNumber}`;
 
     return Object.entries(skillMap)
-      .filter(([_, value]) => value.tier === tierLabel)
+      .filter(([id, value]) => {
+        if (value.tier !== tierLabel) return false;
+        if (!allowedSkillIds) return true;
+        return allowedSkillIds.has(id);
+      })
       .map(([id]) => id);
   };
 
-  // -----------------------------
-  // Load next question
-  // -----------------------------
-  const loadNextQuestion = async (tierNumber, map = skillMap) => {
+  const loadNextQuestion = async (tierNumber) => {
     setLoading(true);
 
-    const skillsInTier = Object.entries(map)
-      .filter(([_, value]) => value.tier === `T${tierNumber}`)
-      .map(([id]) => id);
+    const skillsInTier = getSkillsForTier(tierNumber);
 
     if (skillsInTier.length === 0) {
       setLoading(false);
@@ -101,22 +105,17 @@ const ScreenerApp = ({ studentId, onFinish }) => {
     const randomSkill =
       skillsInTier[Math.floor(Math.random() * skillsInTier.length)];
 
-    const { data, error } = await supabaseClient
+    const { data } = await supabaseClient
       .from("questions")
       .select("*")
       .eq("skill_id", randomSkill)
       .eq("difficulty", 3);
 
-    if (error || !data || data.length === 0) {
-      setLoading(false);
-      return;
-    }
-
-    const unusedQuestions = data.filter(
-      (q) => !usedQuestions.has(q.question_id)
+    const unusedQuestions = data?.filter(
+      q => !usedQuestions.has(q.question_id)
     );
 
-    if (unusedQuestions.length === 0) {
+    if (!unusedQuestions || unusedQuestions.length === 0) {
       setLoading(false);
       return;
     }
@@ -130,13 +129,15 @@ const ScreenerApp = ({ studentId, onFinish }) => {
     );
     setInputValue("");
     setFeedback(null);
-
     setLoading(false);
   };
 
-  // -----------------------------
-  // Submit handler
-  // -----------------------------
+  useEffect(() => {
+    if (!loading && skillMap && Object.keys(skillMap).length > 0) {
+      loadNextQuestion(currentTier);
+    }
+  }, [allowedSkillIds]);
+
   const handleSubmit = async (answer) => {
     if (!currentQuestion) return;
 
@@ -165,7 +166,6 @@ const ScreenerApp = ({ studentId, onFinish }) => {
       setCurrentTier(prev => Math.max(prev - 1, 0));
     }
 
-    // Still log attempt immediately
     await supabaseClient.from("screener_attempts").insert({
       student_id: studentId,
       question_id: currentQuestion.question_id,
@@ -190,9 +190,6 @@ const ScreenerApp = ({ studentId, onFinish }) => {
     }, 300);
   };
 
-  // -----------------------------
-  // Final mastery write (single DB call)
-  // -----------------------------
   const finalizeMastery = async () => {
     const updates = [];
 
@@ -221,9 +218,6 @@ const ScreenerApp = ({ studentId, onFinish }) => {
     }
   };
 
-  // -----------------------------
-  // Render
-  // -----------------------------
   if (loading || !currentQuestion)
     return <div style={{ padding: "40px" }}>Loading...</div>;
 

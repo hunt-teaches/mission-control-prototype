@@ -1,6 +1,10 @@
 const { useState, useEffect } = React;
 
-const Dashboard = ({ onLaunchScreener, onLaunchUnitBuilder }) => {
+const Dashboard = ({
+  onLaunchGlobalScreener,
+  onLaunchUnitScreener,
+  onLaunchUnitBuilder
+}) => {
   const studentId = "User123";
 
   const [availableGrids, setAvailableGrids] = useState([]);
@@ -166,6 +170,30 @@ const Dashboard = ({ onLaunchScreener, onLaunchUnitBuilder }) => {
 
         <div style={{ marginTop: "20px" }}>
 
+          {selectedGrid?.type === "unit" && (
+            <button
+              onClick={() => onLaunchUnitScreener(selectedGrid.id)}
+              style={{
+                marginBottom: "15px",
+                padding: "10px 15px"
+              }}
+            >
+              🚀 Start Unit Screener
+            </button>
+          )}
+
+          {selectedGrid?.type === "global" && (
+            <button
+              onClick={onLaunchGlobalScreener}
+              style={{
+                marginBottom: "15px",
+                padding: "10px 15px"
+              }}
+            >
+              🚀 Start Global Screener
+            </button>
+          )}
+
           {selectedGrid?.type === "unit" && extensionSkills.length > 0 && (
             <>
               <h4>Extension Zone</h4>
@@ -206,15 +234,8 @@ const Dashboard = ({ onLaunchScreener, onLaunchUnitBuilder }) => {
         <h3>Mission Control Apps</h3>
 
         <button
-          onClick={onLaunchScreener}
-          style={{ marginTop: "20px", padding: "15px" }}
-        >
-          🚀 Adaptive Screener
-        </button>
-
-        <button
           onClick={onLaunchUnitBuilder}
-          style={{ marginTop: "10px", padding: "15px" }}
+          style={{ marginTop: "20px", padding: "15px" }}
         >
           🧩 Unit Builder
         </button>
