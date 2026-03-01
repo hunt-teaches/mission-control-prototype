@@ -34,7 +34,6 @@ const TeacherDashboard = ({ onBack }) => {
     return skills.find(s => s.ID === skillId);
   };
 
-  // Sort questions by Tier → then by question_id
   const sortedQuestions = [...questions].sort((a, b) => {
     const skillA = getSkillMeta(a.skill_id);
     const skillB = getSkillMeta(b.skill_id);
@@ -99,7 +98,7 @@ const TeacherDashboard = ({ onBack }) => {
 
       <div style={{ display: "flex" }}>
         <div style={{
-          width: "350px",
+          width: "400px",
           borderRight: "1px solid #ddd",
           paddingRight: "10px",
           maxHeight: "500px",
@@ -117,7 +116,7 @@ const TeacherDashboard = ({ onBack }) => {
                   borderBottom: "1px solid #eee"
                 }}
               >
-                {skill?.Tier} — {q.question_id}
+                {skill?.Tier} — {q.question_id} — Level {q.difficulty}
               </div>
             );
           })}
@@ -202,6 +201,7 @@ const TeacherMeta = ({ question, skill }) => {
       <div><strong>Skill Name:</strong> {skill["Skill Name"]}</div>
       <div><strong>The Goal:</strong> {skill["The Goal"]}</div>
       <div><strong>Correct Answer:</strong> {correctAnswerDisplay}</div>
+      <div><strong>Difficulty:</strong> Level {question.difficulty}</div>
     </div>
   );
 };
